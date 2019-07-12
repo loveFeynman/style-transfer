@@ -14,7 +14,6 @@ MODELS_DIR = '../models'
 SAMPLES_DIR = '../res/test'
 
 LATENT_DIMS = 32
-
 INPUT_DIM = [-1,128,128,3]
 
 LEARNING_RATE = 0.001
@@ -103,11 +102,9 @@ def train_vae():
     global training_summaries
 
     input_image = tf.placeholder(tf.float32, [None, INPUT_DIM[1], INPUT_DIM[2], INPUT_DIM[3]], name='input')
-    #labels = tf.placeholder(tf.float32, [None, LATENT_DIMS], name='input')
     mean, st_dev, sample_latent = vae_encoder(input_image)
     sample_image = vae_decoder(sample_latent)
     view_image = tf.cast(sample_image * 255., tf.uint8)
-
 
     with tf.name_scope('Loss'):
         #loss_image = tf.reduce_mean(tf.reduce_sum(tf.squared_difference(input_image,sample_image)) / tf.cast(tf.shape(input_image)[0],tf.float32))

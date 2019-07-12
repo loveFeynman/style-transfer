@@ -8,7 +8,6 @@ TEST_DIR = '../res/test'
 
 class ImageGenerator:
     def __init__(self):
-
         styles = ['starry_night','honeycomb']
         self.styles = []
         for style in styles:
