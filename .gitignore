@@ -1,2 +1,6 @@
 .idea/
 venv/
+models/
+res/test/
+res/training_images/
+tensorboard_dir/*
