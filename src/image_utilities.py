@@ -2,7 +2,6 @@ import cv2
 from os.path import join
 import numpy as np
 
-
 STYLES_DIR = '../res/styles'
 TEST_DIR = '../res/test'
 
@@ -11,14 +10,12 @@ class ImageGenerator:
         styles = ['starry_night','honeycomb']
         self.styles = []
         for style in styles:
-            img = cv2.imread(join(STYLES_DIR,style + '.jpg'))
-            img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
-            img = img.astype(float)/255.
+            img = open_image(join(STYLES_DIR,style + '.jpg'))
             self.styles.append(img)
         print('ImageGenerator loaded  ' + str(len(self.styles)) + ' styles')
         self.images = {}
     def generate_images(self, category, count, sample_width, sample_height):
-        #print('ImageGenerator generating images...')
+        # print('ImageGenerator generating images...')
         self.images[category] = []
         counts_per_style = [int(count/len(self.styles)) for x in self.styles]
         for i in range(count%len(self.styles)):
@@ -51,8 +48,37 @@ class ImageGenerator:
     def save(self, category, directory):
         for i in range(len(self.images[category])):
             img = self.images[category][i]
-            cv2.imwrite(join(directory, category + '_' + str(i) + '.jpg'), img)
+            save_image(img,join(directory, category + '_' + str(i) + '.jpg'))
 
+def flip_RB(image):
+    return cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+def flip_BR(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+def decimal_to_pixel(img):
+    return (img*255.).astype(np.uint8)
+
+def pixel_to_decimal(img):
+    image = img
+    if type(image) == 'list':
+        image = np.array(image)
+    return image.astype(np.float32)/255.
+
+def save_image(img, path):
+    image = decimal_to_pixel(img)
+    image = flip_RB(image)
+    cv2.imwrite(path,image)
+
+def open_image(path):
+    image = cv2.imread(path)
+    image = flip_BR(image)
+    image = pixel_to_decimal(image)
+    return image
+
+def write_vector(vector, path):
+    with open(path, 'w+') as file:
+        file.write(str(vector))
 
 if __name__ == '__main__':
     generator = ImageGenerator()

@@ -4,3 +4,6 @@ models/
 res/test/
 res/training_images/
 tensorboard_dir/*
+src/frontend/
+*/__pycache__/
+debug.log

@@ -1,11 +1,11 @@
 import tensorflow as tf
 from os.path import join
 import os
-import cv2
 import time
 import numpy as np
-
-from image_generator import ImageGenerator
+import threading
+from image_utilities import ImageGenerator
+from image_utilities import *
 
 training_summaries = []
 LOGDIR = '../tensorboard_dir/'
@@ -13,7 +13,7 @@ TRAINING_IMAGES_DIR = '../res/training_images'
 MODELS_DIR = '../models'
 SAMPLES_DIR = '../res/test'
 
-LATENT_DIMS = 32
+LATENT_DIMS = 4
 INPUT_DIM = [-1,128,128,3]
 
 LEARNING_RATE = 0.001
@@ -21,10 +21,11 @@ NUM_EPOCHS = 2000
 MINI_BATCH_SIZE = 32
 num_samples_per_epoch = 512
 
-use_bn = True
+use_bn = False
 use_pool = True
-activation = tf.nn.relu
+activation = tf.nn.elu
 
+QUAD_SIDE = 8
 
 def vae_encoder(input):
 
@@ -56,6 +57,8 @@ def vae_encoder(input):
 
         flat = tf.layers.flatten(encoder_hidden_1)
 
+        #flat = tf.layers.dense(flat_0, 64)
+
         mean = tf.layers.dense(flat, LATENT_DIMS, name='mean')
         st_dev = tf.layers.dense(flat, LATENT_DIMS, name='st_dev', kernel_initializer=tf.zeros_initializer())
         random_sample = tf.random_normal([tf.shape(flat)[0],LATENT_DIMS])
@@ -70,12 +73,10 @@ def vae_decoder(input):
         kernel_radii = [3, 3, 3]
         kernel_strides = [1, 1, 1]
 
-        arbitrary_reshape_dim = [-1, 16, 16, INPUT_DIM[3]]
+        arbitrary_reshape_dim = [-1, int(INPUT_DIM[1]/8), int(INPUT_DIM[2]/8), INPUT_DIM[3]]
+        flat_reshape_dim = arbitrary_reshape_dim[1] * arbitrary_reshape_dim[2] * arbitrary_reshape_dim[3]
 
-        decoder_leading_dense_dim = arbitrary_reshape_dim[1] * arbitrary_reshape_dim[2] * arbitrary_reshape_dim[3]
-        decoder_hidden_0 = tf.layers.dense(input, 64, activation=tf.nn.elu)
-
-        decoder_hidden_1 = tf.layers.dense(decoder_hidden_0, decoder_leading_dense_dim, activation=activation)
+        decoder_hidden_1 = tf.layers.dense(input, flat_reshape_dim, activation=activation)
         decoder_hidden_1 = tf.reshape(decoder_hidden_1, arbitrary_reshape_dim)
         if use_bn:
             decoder_hidden_1 = tf.layers.batch_normalization(decoder_hidden_1)
@@ -107,9 +108,9 @@ def train_vae():
     view_image = tf.cast(sample_image * 255., tf.uint8)
 
     with tf.name_scope('Loss'):
-        #loss_image = tf.reduce_mean(tf.reduce_sum(tf.squared_difference(input_image,sample_image)) / tf.cast(tf.shape(input_image)[0],tf.float32))
-        loss_image = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=sample_image, labels=input_image, name='loss_image'))
-        loss_kl = tf.reduce_mean(tf.reduce_mean(-0.5 * tf.reduce_sum(1 + st_dev - tf.square(mean) - tf.exp(st_dev), 1))) / 1000 # don't know why, but this 1000 seems to help A LOT
+        loss_image = tf.reduce_mean(tf.reduce_sum(tf.squared_difference(input_image,sample_image)) / tf.cast(tf.shape(input_image)[0],tf.float32))
+        #loss_image = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=sample_image, labels=input_image, name='loss_image'))
+        loss_kl = tf.reduce_mean(tf.reduce_mean(-0.5 * tf.reduce_sum(1 + st_dev - tf.square(mean) - tf.exp(st_dev), 1)))  / float(INPUT_DIM[1]*INPUT_DIM[2])
         loss = tf.identity(loss_image + loss_kl, name='loss')
         optimizer = tf.train.AdamOptimizer(LEARNING_RATE,name='optimizer').minimize(loss)
         training_summaries.append(tf.summary.scalar('Image_Loss', loss_image))
@@ -151,24 +152,15 @@ def train_vae():
                 if start == end:
                     continue
 
-                if step % 5 == 0:
+                if step % num_training_steps == 0:
                     [s] = sess.run([merged_training_summaries], feed_dict={input_image: batch_x})
                     writer.add_summary(s, num_training_steps * epoch + step)
                     writer.flush()
 
-                sess.run([optimizer, loss], feed_dict={input_image: batch_x})
+                sess.run([optimizer], feed_dict={input_image: batch_x})
 
         os.mkdir(join(MODELS_DIR,model_name))
         saver.save(sess, join(MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
-
-def write_vector(vector,path):
-    with open(path, 'w+') as file:
-        file.write(str(vector))
-
-def save_image(img,path):
-    image = (img*255.).astype(np.uint8)
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(path,image)
 
 def sample_vae(model_name):
     global training_summaries
@@ -200,51 +192,78 @@ def sample_vae(model_name):
 def make_quad(model_name):
     global training_summaries
 
-    model_dir = join(MODELS_DIR, model_name)
-    meta_name = 'saved_' + model_name + '-0.meta'
-
     image_generator = ImageGenerator()
     image_generator.generate_images('test', 4, INPUT_DIM[1], INPUT_DIM[2])
     image_generator.shuffle('test')
     images = image_generator.get('test')
 
-    QUAD_SIDE = 32
-
     quad_output = np.zeros([QUAD_SIDE * INPUT_DIM[1], QUAD_SIDE * INPUT_DIM[2],INPUT_DIM[3]], dtype=np.float32)
 
-    with tf.Session() as sess:
-        # sess.run(tf.global_variables_initializer())
+    service = VAEService(model_name)
+    service.start()
+    while not service.loaded:
+        time.sleep(.25)
+
+    base_vectors, base_outputs = service.get_vectors_and_samples_from_images(images)
+
+    # 0 1
+    # 2 3
+    print('constructing ' + str(QUAD_SIDE) + 'x' + str(QUAD_SIDE) + ' quad')
+    for x in range(QUAD_SIDE):
+        for y in range(QUAD_SIDE):
+            x_r = float(x)/float(QUAD_SIDE)
+            y_r = float(y)/float(QUAD_SIDE)
+            r0 = (1. - x_r) * (1. - y_r)
+            r1 = x_r * (1. - y_r)
+            r2 = (1. - x_r) * y_r
+            r3 = x_r * y_r
+            weights = np.array([[r0] * LATENT_DIMS, [r1] * LATENT_DIMS, [r2] * LATENT_DIMS, [r3] * LATENT_DIMS]).reshape((4,LATENT_DIMS))
+            weighted_vector = np.sum(np.multiply(base_vectors,weights), axis=0)
+
+            sample_outputs = service.get_image_from_vector(weighted_vector)
+            quad_output[x*INPUT_DIM[1]:(x+1)*INPUT_DIM[1],y*INPUT_DIM[2]:(y+1)*INPUT_DIM[2],:] = sample_outputs[0]
+
+    save_image(quad_output, join(SAMPLES_DIR, 'quad.jpg'))
+
+class VAEService(threading.Thread):
+    def __init__(self, model_name):
+        super().__init__()
+        self.model_name = model_name
+        self.loaded = False
+
+    def run(self):
+        print('VAEService starting...')
+        model_dir = join(MODELS_DIR, self.model_name)
+        meta_name = 'saved_' + self.model_name + '-0.meta'
+        self.session = tf.Session()
         saver = tf.train.import_meta_graph(os.path.join(model_dir, meta_name))
-        saver.restore(sess, tf.train.latest_checkpoint(model_dir))
+        saver.restore(self.session, tf.train.latest_checkpoint(model_dir))
+        self.encoder_input = self.session.graph.get_tensor_by_name('input:0')
+        self.latent_vector = self.session.graph.get_tensor_by_name('vae_encoder/sample_latent:0')
+        self.decoder_output = self.session.graph.get_tensor_by_name('vae_decoder/sample_image:0')
+        self.loaded = True
+        print('VAEService running.')
 
-        encoder_input = sess.graph.get_tensor_by_name('input:0')
-        latent_vector = sess.graph.get_tensor_by_name('vae_encoder/sample_latent:0')
-        decoder_output = sess.graph.get_tensor_by_name('vae_decoder/sample_image:0')
+    def get_image_from_vector(self, vector):
+        if not self.loaded:
+            return None
+        sample_outputs = self.session.run([self.decoder_output], feed_dict={self.latent_vector:[vector]})
+        return sample_outputs[0]
 
-        base_vectors, base_outputs = sess.run([latent_vector, decoder_output], feed_dict={encoder_input: images})
-        # 0 1
-        # 2 3
-        print('constructing ' + str(QUAD_SIDE) + 'x' + str(QUAD_SIDE) + ' quad')
-        for x in range(QUAD_SIDE):
-            for y in range(QUAD_SIDE):
-                x_r = float(x)/float(QUAD_SIDE)
-                y_r = float(y)/float(QUAD_SIDE)
-                r0 = (1. - x_r) * (1. - y_r)
-                r1 = x_r * (1. - y_r)
-                r2 = (1. - x_r) * y_r
-                r3 = x_r * y_r
-                weights = np.array([[r0] * LATENT_DIMS, [r1] * LATENT_DIMS, [r2] * LATENT_DIMS, [r3] * LATENT_DIMS]).reshape((4,32))
-                weighted_vector = np.sum(np.multiply(base_vectors,weights), axis=0)
+    def get_vectors_and_samples_from_images(self, images):
+        if not self.loaded:
+            return None
+        vectors, samples = self.session.run([self.latent_vector, self.decoder_output], feed_dict={self.encoder_input: images})
+        return vectors, samples
 
-                sample_outputs = sess.run([decoder_output], feed_dict={latent_vector: [weighted_vector]})
-                quad_output[x*INPUT_DIM[1]:(x+1)*INPUT_DIM[1],y*INPUT_DIM[2]:(y+1)*INPUT_DIM[2],:] = sample_outputs[0]
+    def close(self):
 
-        save_image(quad_output, join(SAMPLES_DIR, 'quad.jpg'))
-
-
-
+        self.session.close()
 
 if __name__ == '__main__':
+    # VAE_2019-07-11-22-55 - decent one using cross entropy, deep fried looking of course
+    # VAE_2019-07-12-14-51 - really good one using MSE
+
     # train_vae()
     # sample_vae('VAE_2019-07-11-22-55')
-    make_quad('VAE_2019-07-11-22-55')
+    make_quad('VAE_2019-07-12-14-51')
