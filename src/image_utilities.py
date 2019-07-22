@@ -68,7 +68,7 @@ def pixel_to_decimal(img):
 def save_image(img, path):
     image = decimal_to_pixel(img)
     image = flip_RB(image)
-    cv2.imwrite(path,image)
+    cv2.imwrite(path, image)
 
 def open_image(path):
     image = cv2.imread(path)
