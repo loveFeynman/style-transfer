@@ -6,8 +6,7 @@ STYLES_DIR = '../res/styles'
 TEST_DIR = '../res/test'
 
 class ImageGenerator:
-    def __init__(self):
-        styles = ['starry_night','honeycomb']
+    def __init__(self, styles = ('starry_night','honeycomb')):
         self.styles = []
         for style in styles:
             img = open_image(join(STYLES_DIR,style + '.jpg'))
@@ -50,6 +49,15 @@ class ImageGenerator:
             img = self.images[category][i]
             save_image(img,join(directory, category + '_' + str(i) + '.jpg'))
 
+class TrainingImageManager(): # TODO: complete this
+    def generate_style_images(self):
+        pass
+    def load_style_images(self):
+        pass
+    def load_test_images(self):
+        self.test_images = []
+
+
 def flip_RB(image):
     return cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
@@ -80,7 +88,10 @@ def write_vector(vector, path):
     with open(path, 'w+') as file:
         file.write(str(vector))
 
-if __name__ == '__main__':
+def test():
     generator = ImageGenerator()
     generator.generate_images('test', 12, 256, 256)
     generator.save('test', TEST_DIR)
+
+if __name__ == '__main__':
+    test()

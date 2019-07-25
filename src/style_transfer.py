@@ -8,13 +8,11 @@ from image_utilities import flip_BR, pixel_to_decimal, save_image
 
 # mostly just messing with tensorflow-provided code for style transfer (https://www.tensorflow.org/beta/tutorials/generative/style_transfer)
 
-
 TEST_DIR = '../res/test'
 TEST_IMG = os.path.join(TEST_DIR, 'vgg_test_1.jpg')
 
-
-# style_image_1 = '../res/styles/honeycomb_small.jpg'
-style_image_1 = '../res/styles/starry_night_small.jpg'
+style_image_1 = '../res/styles/honeycomb_small.jpg'
+# style_image_1 = '../res/styles/starry_night_small.jpg'
 content_image_1 = '../res/content/antelope_small.jpg'
 output_path = '../res/test'
 
@@ -74,8 +72,6 @@ def net():
             train_step(image)
         trained_img = image.read_value()[0].numpy()
         save_image(trained_img, os.path.join(output_path,'style_transfer_sample_' + str(epoch) + '.jpg'))
-
-
 
 class StyleContentModel(tf.keras.models.Model):
     def __init__(self, style_layers, content_layers):
