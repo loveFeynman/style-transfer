@@ -1,9 +1,16 @@
 import cv2
 from os.path import join
+import os
 import numpy as np
+from typing import overload
 
 STYLES_DIR = '../res/styles'
 TEST_DIR = '../res/test'
+
+COCO_DATASET = '../../../res/coco/train2014/train2014/'
+
+DEBUG_MODE = False
+
 
 class ImageGenerator:
     def __init__(self, styles = ('starry_night','honeycomb')):
@@ -49,13 +56,88 @@ class ImageGenerator:
             img = self.images[category][i]
             save_image(img,join(directory, category + '_' + str(i) + '.jpg'))
 
-class TrainingImageManager(): # TODO: complete this
+class TrainingImageManager: # TODO: complete this
     def generate_style_images(self):
         pass
     def load_style_images(self):
         pass
     def load_test_images(self):
         self.test_images = []
+
+class DatasetManager:
+    def __init__(self, directory, target_dim = (224, 224), num_images = None):
+        self.images = []
+        self.target_dim = target_dim
+        self.load_images(directory, num_images)
+
+    def load_images(self, directory, num_images = None):
+        files = os.listdir(directory)
+        debug('Found ' + str(len(files)) + ' images in \"' + directory + '\"')
+
+        for file in files:
+            if len(self.images) > num_images:
+                continue
+            if '.jpg' not in file:
+                continue
+            path = os.path.join(directory, file)
+
+            img = cv2.imread(path)
+            if can_clip_image_to_dims(img, dim=self.target_dim):
+
+                img = random_clip_image_to_dim(img, dim=self.target_dim)
+                img = pixel_to_decimal(flip_BR(img))
+
+                self.images.append(img)
+                debug('Loaded ' + str(len(self.images)) + ' out of ' + str(num_images) + ' (' + path + ')')
+
+
+
+    def shuffle_loaded_images(self):
+        for x in range(len(self.images)):
+            random_indexes = np.random.randint(len(self.images), size=2)
+            hold = self.images[random_indexes[0]]
+            self.images[random_indexes[0]] = self.images[random_indexes[1]]
+            self.images[random_indexes[1]] = hold
+    def get_images(self):
+        return self.images
+
+class CocoDatasetManager(DatasetManager):
+    def __init__(self, target_dim = (224, 224), num_images = None):
+        super().__init__(COCO_DATASET, target_dim = target_dim, num_images = num_images)
+
+
+def clip_image_to_dims(image, width, height, start_x = 0, start_y = 0):
+    if image.shape[0] < height - start_y or image.shape[1] < width - start_x:
+        return image
+    return image[start_y:height+start_y,start_x:width+start_x]
+
+
+def can_clip_image_to_dims(image, width = None, height = None, dim = None):
+    w = 0
+    h = 0
+    if width != None and height != None:
+        w = width
+        h = height
+    if dim != None:
+        w = dim[0]
+        h = dim[1]
+
+    return image.shape[0] > h and image.shape[1] > w
+
+def random_clip_image_to_dim(image, width = None, height = None, dim = None):
+    w = 0
+    h = 0
+    if width != None and height != None:
+        w = width
+        h = height
+    if dim != None:
+        w = dim[0]
+        h = dim[1]
+
+    random_start_x = np.random.randint(image.shape[1] - w, size=1)[0]
+    random_start_y = np.random.randint(image.shape[0] - h, size=1)[0]
+    return clip_image_to_dims(image, w, h, random_start_x, random_start_y)
+
 
 
 def flip_RB(image):
@@ -92,6 +174,11 @@ def test():
     generator = ImageGenerator()
     generator.generate_images('test', 12, 256, 256)
     generator.save('test', TEST_DIR)
+
+def debug(str):
+    if DEBUG_MODE:
+        print(str)
+
 
 if __name__ == '__main__':
     test()

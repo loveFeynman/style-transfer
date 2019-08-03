@@ -7,7 +7,7 @@ from tensorflow.python._pywrap_tensorflow_internal import Flatten
 from tensorflow.python.keras import Sequential
 from tensorflow.python.keras.layers import Conv2D, MaxPooling2D, Dropout
 
-from image_utilities import flip_BR, pixel_to_decimal, save_image
+from image_utilities import flip_BR, pixel_to_decimal, save_image, CocoDatasetManager
 
 # using code from (https://www.tensorflow.org/beta/tutorials/generative/style_transfer) at points
 
@@ -20,6 +20,8 @@ style_image_1 = '../res/styles/honeycomb_small.jpg'
 # style_image_1 = '../res/styles/starry_night_small.jpg'
 content_image_1 = '../res/content/antelope_small.jpg'
 output_path = '../res/test'
+
+
 
 style_weight = 1e-2
 content_weight = 1e4
@@ -206,6 +208,49 @@ def train_stylizer():
         trained_img = stylizer_network(content_image).numpy()[0]
         save_image(trained_img, os.path.join(output_path, 'style_transfer_sample_' + str(epoch) + '.jpg'))
 
+def train_stylizer_on_dataset():
+    stylizer_network = style_net()
+    style_image = pixel_to_decimal(flip_BR(cv2.imread(style_image_1))).reshape((1, 224, 224, 3))
+    content_image = pixel_to_decimal(flip_BR(cv2.imread(content_image_1))).reshape((1, 224, 224, 3))
+    content_layers = ['block5_conv2']
+    style_layers = ['block1_conv1',
+                    'block2_conv1',
+                    'block3_conv1',
+                    'block4_conv1',
+                    'block5_conv1']
+    extractor = StyleContentModel(style_layers, content_layers)
+    opt = tf.keras.optimizers.Adam(lr=learning_rate, beta_1=.99, epsilon=1e-1)
+
+    def train_step(input_image):
+        style_targets = extractor(style_image)['style']
+        content_targets = extractor(input_image)['content']
+        with tf.GradientTape() as tape:
+            stylized_image = stylizer_network(input_image)
+            outputs = extractor(stylized_image)
+            loss = total_loss(outputs, style_targets, content_targets, len(style_layers), len(content_layers), stylized_image)
+
+        variables = stylizer_network.trainable_variables
+        grad = tape.gradient(loss, variables)
+        opt.apply_gradients(zip(grad,variables))
+
+    print('Loading images...')
+    dataset_manager = CocoDatasetManager(target_dim=(224,224), num_images = 1000)
+    print('Done loading images')
+    images = dataset_manager.get_images()
+    BATCH_SIZE = 20
+    batch_position = 0
+
+    for epoch in range(epochs):
+        print('Epoch ' + str(epoch + 1) + ' of ' + str(epochs))
+        if batch_position == 0:
+            dataset_manager.shuffle_loaded_images()
+        for image in images[batch_position*BATCH_SIZE: (batch_position+1)*BATCH_SIZE]:
+            train_step(image.reshape((1,224,224,3)))
+        batch_position += 1
+        batch_position %= int(len(images)/BATCH_SIZE)
+        trained_img = stylizer_network(content_image).numpy()[0]
+        save_image(trained_img, os.path.join(output_path, 'style_transfer_sample_' + str(epoch) + '.jpg'))
+
 def clip_0_1(image):
   return tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
 
@@ -238,4 +283,4 @@ def total_loss(style_network_outputs, style_targets, content_targets, num_style_
 
 if __name__ == '__main__':
     #test()
-    train_stylizer()
+    train_stylizer_on_dataset()
