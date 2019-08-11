@@ -12,6 +12,9 @@ LOGDIR = '../tensorboard_dir/'
 TRAINING_IMAGES_DIR = '../res/training_images'
 MODELS_DIR = '../models'
 SAMPLES_DIR = '../res/test'
+STYLES_DIR = '../res/styles'
+
+VAE_SAMPLES_FOR_TRAINING_DIR = '../res/training/vae'
 
 QUAD_SIDE = 8
 
@@ -264,6 +267,28 @@ class VAEService(threading.Thread):
     def close(self):
 
         self.session.close()
+
+    def wait_for_ready(self, increment = .1):
+        while not self.loaded:
+            time.sleep(increment)
+
+def generate_vae_samples(model_name, num_samples = 1000):
+    service = VAEService(model_name)
+    service.start()
+    service.wait_for_ready()
+
+    image_1_name = 'test.jpg'
+    image_2_name = 'test2.jpg'
+    images = [image_1_name, image_2_name]
+    images = [os.path.join(STYLES_DIR, x) for x in images]
+    images = [open_image(x) for x in images]
+    vectors, samples = service.get_vectors_and_samples_from_images(images)
+    increment = (vectors[1] - vectors[0]) / num_samples
+    for x in range(num_samples):
+        image_sample = service.get_image_from_vector(vectors[0] + (x * increment))
+        save_image(image_sample, os.path.join(VAE_SAMPLES_FOR_TRAINING_DIR, 'sample_' + str(x) + '.jpg'))
+
+
 
 def get_most_recent_vae():
     models = os.listdir(MODELS_DIR)

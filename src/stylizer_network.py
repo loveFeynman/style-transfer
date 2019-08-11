@@ -199,7 +199,7 @@ def train_stylizer():
 
         variables = stylizer_network.trainable_variables
         grad = tape.gradient(loss, variables)
-        opt.apply_gradients(zip(grad,variables))
+        opt.apply_gradients(zip(grad, variables))
 
     for epoch in range(epochs):
         print('Epoch ' + str(epoch + 1) + ' of ' + str(epochs))
