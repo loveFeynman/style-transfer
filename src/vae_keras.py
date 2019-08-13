@@ -21,7 +21,7 @@ VAE_SAMPLES_FOR_TRAINING_DIR = '../res/training/vae'
 
 QUAD_SIDE = 8
 
-INPUT_DIM = [-1, 128, 128, 3] # [-1, 224, 224, 3]
+INPUT_DIM = [-1, 224, 224, 3] # [-1, 224, 224, 3]
 LATENT_DIMS = 4
 use_bn = False
 use_pool = True
@@ -32,7 +32,7 @@ use_mse_loss = True
 
 LEARNING_RATE = 0.001
 NUM_EPOCHS = 2000
-MINI_BATCH_SIZE = 32
+MINI_BATCH_SIZE = 64
 num_samples_per_epoch = 512
 
 tf.enable_eager_execution()
@@ -89,12 +89,12 @@ def vae_encoder_keras():
 
 def vae_decoder_keras():
 
-    decoder_dims = [16, 16, 32]
-    kernel_radii = [3, 3, 3]
-    kernel_strides = [1, 1, 1]
-    reshape_multi = 8
+    decoder_dims = [32, 32, 32, INPUT_DIM[3]]
+    kernel_radii = [3, 3, 3, 3]
+    kernel_strides = [1, 1, 1, 1]
+    reshape_multi = 1
 
-    arbitrary_reshape_dim = [int(INPUT_DIM[1] / reshape_multi), int(INPUT_DIM[2] / reshape_multi), INPUT_DIM[3]]
+    arbitrary_reshape_dim = [int(INPUT_DIM[1] - 4), int(INPUT_DIM[2] - 4), INPUT_DIM[3]]
     flat_reshape_dim = arbitrary_reshape_dim[0] * arbitrary_reshape_dim[1] * arbitrary_reshape_dim[2]
 
     network_input = tf.keras.layers.Input(shape=TensorShape([LATENT_DIMS]), dtype=tf.float32)
@@ -106,7 +106,13 @@ def vae_decoder_keras():
 
     layer = 0
 
-    decoder = tf.keras.layers.Conv2DTranspose(decoder_dims[layer], kernel_size=kernel_radii[layer], strides=kernel_strides[layer], activation=activation, padding='same')(decoder)
+    decoder = tf.keras.layers.Conv2DTranspose(decoder_dims[layer], kernel_size=kernel_radii[layer], strides=kernel_strides[layer], activation=activation, padding='valid')(decoder)
+    if use_bn:
+        decoder = tf.keras.layers.BatchNormalization()(decoder)
+
+    layer += 1
+
+    decoder = tf.keras.layers.Conv2DTranspose(decoder_dims[layer], kernel_size=kernel_radii[layer], strides=kernel_strides[layer], activation=activation, padding='valid')(decoder)
     if use_bn:
         decoder = tf.keras.layers.BatchNormalization()(decoder)
 
@@ -118,9 +124,7 @@ def vae_decoder_keras():
 
     layer += 1
 
-    decoder = tf.keras.layers.Flatten()(decoder)
-    decoder = tf.keras.layers.Dense(INPUT_DIM[1] * INPUT_DIM[2] * INPUT_DIM[3], activation=tf.nn.sigmoid)(decoder)
-    decoder = tf.keras.layers.Reshape(INPUT_DIM)(decoder)
+    decoder = tf.keras.layers.Conv2DTranspose(decoder_dims[layer], kernel_size=kernel_radii[layer], strides=kernel_strides[layer], activation=tf.nn.sigmoid, padding='same')(decoder)
 
     model = tf.keras.Model(inputs=network_input, outputs=decoder)
 
@@ -156,6 +160,8 @@ def train_vae_keras():
         opt.apply_gradients(zip(grad, variables))
         return total_loss
 
+    train_start_time = time.time()
+
     for epoch in range(NUM_EPOCHS):
         print("Epoch ", epoch + 1, " out of ", NUM_EPOCHS, " epochs.")
         num_training_steps = int(num_samples_per_epoch / MINI_BATCH_SIZE) + 1
@@ -173,8 +179,23 @@ def train_vae_keras():
                 continue
 
             total_loss = train_step(batch)
-            if step == 5:
-                print('loss: ' + str(total_loss.numpy()))
+            if step == 0:
+
+                test_img = train_data[0]
+                [mean, st_dev, sample_latent] = encoder(np.array([test_img]))
+                sample_image = decoder(sample_latent)
+                sampled_img = sample_image[0]
+                keras_samples_dir = 'keras_samples'
+                save_image(test_img,os.path.join(SAMPLES_DIR, keras_samples_dir, 'vae_keras_' + str(epoch) + '_truth.jpg'))
+                save_image(sampled_img.numpy(),os.path.join(SAMPLES_DIR, keras_samples_dir, 'vae_keras_' + str(epoch) + '_sample.jpg'))
+                epoch_end = time.time()
+                elapsed = epoch_end - train_start_time
+                time_digits = 6
+                ETA = ((epoch_end - train_start_time) / (1 + epoch)) * (NUM_EPOCHS - (epoch + 1))
+                print('loss: ' + str(total_loss.numpy()) + ' | elapsed: ' + str(elapsed/60.)[:time_digits] + ' min | remaining training time: ' + str(ETA/60.)[:time_digits] + ' min')
+
+
+
 
         # print('Training concluded. Saving model...')
         # os.mkdir(join(MODELS_DIR,model_name))
