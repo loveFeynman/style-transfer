@@ -6,18 +6,16 @@ import numpy as np
 import threading
 
 from tensorflow import TensorShape
+from tensorflow.python.keras.engine import Layer
+from tensorflow.python.keras.saving import model_from_json, load_model
 
 from image_utilities import ImageGenerator
 from image_utilities import *
+from constants import *
 
 training_summaries = []
-LOGDIR = '../tensorboard_dir/'
-TRAINING_IMAGES_DIR = '../res/training_images'
-MODELS_DIR = '../models'
-SAMPLES_DIR = '../res/test'
-STYLES_DIR = '../res/styles'
 
-VAE_SAMPLES_FOR_TRAINING_DIR = '../res/training/vae'
+model_prefix = 'VAE_KERAS'
 
 QUAD_SIDE = 8
 
@@ -36,6 +34,25 @@ MINI_BATCH_SIZE = 64
 num_samples_per_epoch = 512
 
 tf.enable_eager_execution()
+
+class SampleLayer(Layer):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        super().build(input_shape)
+
+    def call(self, x):
+        mean, st_dev = x
+        random_sample = tf.random_normal([tf.keras.backend.shape(mean)[0], LATENT_DIMS])
+        return mean + (st_dev * random_sample)
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.output_dim)
+
+    def get_config(self):
+        base_config = super().get_config()
+        return base_config
 
 
 def vae_encoder_keras():
@@ -75,7 +92,8 @@ def vae_encoder_keras():
 
     mean = tf.keras.layers.Dense(LATENT_DIMS)(encoder)
     st_dev = tf.keras.layers.Dense(LATENT_DIMS, kernel_initializer=tf.zeros_initializer())(encoder)
-    sample = tf.keras.layers.Lambda(make_sample, output_shape=[None, 4])([mean, st_dev])
+    # sample = tf.keras.layers.Lambda(make_sample, output_shape=[None, 4])([mean, st_dev])
+    sample = SampleLayer()([mean, st_dev])
     model = tf.keras.Model(inputs=network_input, outputs=[mean, st_dev, sample])
 
     # mean = tf.keras.layers.Dense(LATENT_DIMS)(encoder)
@@ -202,33 +220,45 @@ def train_vae_keras():
         # saver.save(sess, join(MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         # print('Model saved.')
 
+    model_name = str(time.time())[:10]
+    save_vae(encoder, decoder, model_name)
 
-def sample_vae(model_name):
-    global training_summaries
 
-    model_dir = join(MODELS_DIR, model_name)
-    meta_name = 'saved_' + model_name + '-0.meta'
+def save_vae(encoder, decoder, model_name):
+    dir_name = os.path.join(MODELS_DIR, model_prefix + '_' + model_name)
+    os.mkdir(dir_name)
+    save_keras_model(encoder, dir_name, model_prefix + '_encoder_' + model_name)
+    save_keras_model(decoder, dir_name, model_prefix + '_decoder_' + model_name)
 
-    image_generator = ImageGenerator()
-    image_generator.generate_images('test', 100, INPUT_DIM[1], INPUT_DIM[2])
-    image_generator.shuffle('test')
-    images = image_generator.get('test')
 
-    with tf.Session() as sess:
-        #sess.run(tf.global_variables_initializer())
-        saver = tf.train.import_meta_graph(os.path.join(model_dir, meta_name))
-        saver.restore(sess, tf.train.latest_checkpoint(model_dir))
+def load_vae(model_name):
+    dir_name = os.path.join(MODELS_DIR, model_prefix + '_' + model_name)
+    encoder = load_keras_model(dir_name, model_prefix + '_encoder_' + model_name)
+    decoder = load_keras_model(dir_name, model_prefix + '_decoder_' + model_name)
+    return encoder, decoder
 
-        encoder_input = sess.graph.get_tensor_by_name('input:0')
-        latent_vector = sess.graph.get_tensor_by_name('vae_encoder/sample_latent:0')
-        decoder_output = sess.graph.get_tensor_by_name('vae_decoder/sample_image:0')
 
-        for i in range(10):
-            sample_vectors, sample_outputs = sess.run([latent_vector, decoder_output], feed_dict={encoder_input:[images[i]]})
+def save_keras_model(model, dir, name):
+    # model.save_weights(os.path.join(dir, name + '.h5'))
+    # with open(os.path.join(dir, name + '.json'), 'w+') as js:
+    #     js.write(model.to_json())
+    model.save(os.path.join(dir, name + '.h5'))
 
-            save_image(sample_outputs[0],join(SAMPLES_DIR, str(i) + '_sample.jpg'))
-            save_image(images[i], join(SAMPLES_DIR, str(i) + '_truth.jpg'))
-            write_vector(sample_vectors[0], join(SAMPLES_DIR, str(i) + '_vector.txt'))
+
+def load_keras_model(dir, name):
+    model = load_model(os.path.join(dir, name + '.h5'), custom_objects={'SampleLayer': SampleLayer})
+    # with open(os.path.join(dir, name + '.json')) as js:
+    #     model = model_from_json(js.read())
+    # model.load_weights(os.path.join(dir, name + '.h5'))
+    return model
+
+
+def get_most_recent_vae_name():
+    models = os.listdir(MODELS_DIR)
+    models.sort()
+    models = [x for x in models if model_prefix in x]
+    return models[-1].split('_')[-1]
+
 
 def make_quad(model_name):
     global training_summaries
@@ -260,7 +290,6 @@ def make_quad(model_name):
             r3 = x_r * y_r
             weights = np.array([[r0] * LATENT_DIMS, [r1] * LATENT_DIMS, [r2] * LATENT_DIMS, [r3] * LATENT_DIMS]).reshape((4,LATENT_DIMS))
             weighted_vector = np.sum(np.multiply(base_vectors,weights), axis=0)
-            print(weighted_vector)
             sample_output = service.get_image_from_vector(weighted_vector)
             quad_output[x*INPUT_DIM[1]:(x+1)*INPUT_DIM[1],y*INPUT_DIM[2]:(y+1)*INPUT_DIM[2],:] = sample_output
 
@@ -274,32 +303,30 @@ class VAEService(threading.Thread):
 
     def run(self):
         print('VAEService starting...')
-        model_dir = join(MODELS_DIR, self.model_name)
-        meta_name = 'saved_' + self.model_name + '-0.meta'
-        self.session = tf.Session()
-        saver = tf.train.import_meta_graph(os.path.join(model_dir, meta_name))
-        saver.restore(self.session, tf.train.latest_checkpoint(model_dir))
-        self.encoder_input = self.session.graph.get_tensor_by_name('input:0')
-        self.latent_vector = self.session.graph.get_tensor_by_name('vae_encoder/sample_latent:0')
-        self.decoder_output = self.session.graph.get_tensor_by_name('vae_decoder/sample_image:0')
+        self.encoder, self.decoder = load_vae(self.model_name)
         self.loaded = True
         print('VAEService running.')
 
     def get_image_from_vector(self, vector):
         if not self.loaded:
             return None
-        sample_outputs = self.session.run(self.decoder_output, feed_dict={self.latent_vector:[vector]})
+        sample_outputs = self.decoder(vector).numpy()
         return sample_outputs[0]
 
     def get_vectors_and_samples_from_images(self, images):
         if not self.loaded:
             return None
-        vectors, samples = self.session.run([self.latent_vector, self.decoder_output], feed_dict={self.encoder_input: images})
+        network_inputs = images
+        if isinstance(images, list):
+            network_inputs = np.array(images)
+        if len(network_inputs.shape) == 3:
+            network_inputs = network_inputs.reshape((1, network_inputs.shape[0], network_inputs.shape[1], network_inputs.shape[2]))
+        vectors = self.encoder(network_inputs)
+        samples = self.decoder(vectors).numpy()
         return vectors, samples
 
     def close(self):
-
-        self.session.close()
+        pass
 
     def wait_for_ready(self, increment = .1):
         while not self.loaded:
@@ -322,14 +349,9 @@ def generate_vae_samples(model_name, num_samples = 1000):
         save_image(image_sample, os.path.join(VAE_SAMPLES_FOR_TRAINING_DIR, 'sample_' + str(x) + '.jpg'))
 
 
-def get_most_recent_vae():
-    models = os.listdir(MODELS_DIR)
-    models.sort()
-    models = [x for x in models if 'VAE' in x]
-    return models[-1]
-
 if __name__ == '__main__':
-    train_vae_keras()
+    # train_vae_keras()
     # train_vae()
-    # sample_vae(get_most_recent_vae())
-    # make_quad(get_most_recent_vae())
+    # sample_vae(get_most_recent_vae_name())
+    make_quad(get_most_recent_vae_name())
+    # encoder, decoder = load_vae(get_most_recent_vae_name())
