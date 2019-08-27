@@ -348,10 +348,30 @@ def generate_vae_samples(model_name, num_samples = 1000):
         image_sample = service.get_image_from_vector(vectors[0] + (x * increment))
         save_image(image_sample, os.path.join(VAE_SAMPLES_FOR_TRAINING_DIR, 'sample_' + str(x) + '.jpg'))
 
+def sample_vae(model_name):
+    service = VAEService(model_name)
+    service.start()
+    service.wait_for_ready()
+
+    image_generator = ImageGenerator()
+    image_generator.generate_images('test', 100, INPUT_DIM[1], INPUT_DIM[2])
+    image_generator.shuffle('test')
+    images = image_generator.get('test')
+
+    vectors, samples_outputs = service.get_vectors_and_samples_from_images(images)
+    if not os.path.exists(VAE_KERAS_GENERATED_SAMPLES_DIR):
+        os.mkdir(VAE_KERAS_GENERATED_SAMPLES_DIR)
+
+    for x in range(len(samples_outputs)):
+        save_image(samples_outputs[x],join(VAE_KERAS_GENERATED_SAMPLES_DIR, str(x) + '_sample.jpg'))
+        save_image(images[x], join(VAE_KERAS_GENERATED_SAMPLES_DIR, str(x) + '_truth.jpg'))
+
+
+
 
 if __name__ == '__main__':
     # train_vae_keras()
     # train_vae()
-    # sample_vae(get_most_recent_vae_name())
-    make_quad(get_most_recent_vae_name())
+    sample_vae(get_most_recent_vae_name())
+    # make_quad(get_most_recent_vae_name())
     # encoder, decoder = load_vae(get_most_recent_vae_name())
