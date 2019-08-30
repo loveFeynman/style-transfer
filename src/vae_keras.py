@@ -29,7 +29,7 @@ kl_loss_divisor = float(INPUT_DIM[1]*INPUT_DIM[2])
 use_mse_loss = True
 
 LEARNING_RATE = 0.001
-NUM_EPOCHS = 2000
+NUM_EPOCHS = 4000
 MINI_BATCH_SIZE = 64
 num_samples_per_epoch = 512
 
@@ -107,10 +107,10 @@ def vae_encoder_keras():
 
 def vae_decoder_keras():
 
-    decoder_dims = [32, 32, 32, INPUT_DIM[3]]
+    decoder_dims = [64, 64, 64, INPUT_DIM[3]]
     kernel_radii = [3, 3, 3, 3]
     kernel_strides = [1, 1, 1, 1]
-    reshape_multi = 1
+
 
     arbitrary_reshape_dim = [int(INPUT_DIM[1] - 4), int(INPUT_DIM[2] - 4), INPUT_DIM[3]]
     flat_reshape_dim = arbitrary_reshape_dim[0] * arbitrary_reshape_dim[1] * arbitrary_reshape_dim[2]
@@ -310,7 +310,7 @@ class VAEService(threading.Thread):
     def get_image_from_vector(self, vector):
         if not self.loaded:
             return None
-        sample_outputs = self.decoder(vector).numpy()
+        sample_outputs = self.decoder(np.reshape(vector, (1, LATENT_DIMS))).numpy()
         return sample_outputs[0]
 
     def get_vectors_and_samples_from_images(self, images):
@@ -321,7 +321,7 @@ class VAEService(threading.Thread):
             network_inputs = np.array(images)
         if len(network_inputs.shape) == 3:
             network_inputs = network_inputs.reshape((1, network_inputs.shape[0], network_inputs.shape[1], network_inputs.shape[2]))
-        vectors = self.encoder(network_inputs)
+        [mean, stdev, vectors] = self.encoder(network_inputs)
         samples = self.decoder(vectors).numpy()
         return vectors, samples
 
@@ -331,22 +331,6 @@ class VAEService(threading.Thread):
     def wait_for_ready(self, increment = .1):
         while not self.loaded:
             time.sleep(increment)
-
-def generate_vae_samples(model_name, num_samples = 1000):
-    service = VAEService(model_name)
-    service.start()
-    service.wait_for_ready()
-
-    image_1_name = 'test.jpg'
-    image_2_name = 'test2.jpg'
-    images = [image_1_name, image_2_name]
-    images = [os.path.join(STYLES_DIR, x) for x in images]
-    images = [open_image(x) for x in images]
-    vectors, samples = service.get_vectors_and_samples_from_images(images)
-    increment = (vectors[1] - vectors[0]) / num_samples
-    for x in range(num_samples):
-        image_sample = service.get_image_from_vector(vectors[0] + (x * increment))
-        save_image(image_sample, os.path.join(VAE_SAMPLES_FOR_TRAINING_DIR, 'sample_' + str(x) + '.jpg'))
 
 def sample_vae(model_name):
     service = VAEService(model_name)
@@ -366,12 +350,54 @@ def sample_vae(model_name):
         save_image(samples_outputs[x],join(VAE_KERAS_GENERATED_SAMPLES_DIR, str(x) + '_sample.jpg'))
         save_image(images[x], join(VAE_KERAS_GENERATED_SAMPLES_DIR, str(x) + '_truth.jpg'))
 
+def generate_stylizer_training_data(model_name, samples_to_generate = 1000, use_randomness = True):
+    service = VAEService(model_name)
+    service.start()
+    service.wait_for_ready()
 
+    image_generator = ImageGenerator()
+    image_generator.generate_images('test', 100, INPUT_DIM[1], INPUT_DIM[2])
+    images = image_generator.get('test')
+
+    samples_per_class = int(len(images)/2)
+
+    vectors_1, _ = service.get_vectors_and_samples_from_images(images[:samples_per_class])
+    vectors_2, _ = service.get_vectors_and_samples_from_images(images[samples_per_class:])
+
+    mean_vector_style_1 = np.mean(vectors_1, axis=0)
+    mean_vector_style_2 = np.mean(vectors_2, axis=0)
+    stdev_style_1 = np.std(vectors_1, axis=0)
+    stdev_style_2 = np.std(vectors_2, axis=0)
+
+    random_samples_1 = np.zeros((samples_to_generate, LATENT_DIMS)) if not use_randomness else np.random.randn(samples_to_generate, LATENT_DIMS)
+    random_samples_2 = np.zeros((samples_to_generate, LATENT_DIMS)) if not use_randomness else np.random.randn(samples_to_generate, LATENT_DIMS)
+
+    sampled_vectors_1 = (random_samples_1 * stdev_style_1) + mean_vector_style_1
+    sampled_vectors_2 = (random_samples_2 * stdev_style_2) + mean_vector_style_2
+
+    scalars_1 = np.arange(float(samples_to_generate))/float(samples_to_generate)
+    scalars_2 = np.arange(float(samples_to_generate), 0., -1.)/float(samples_to_generate)
+
+    scalars_1 = np.reshape(scalars_1, (samples_to_generate,1))
+    scalars_2 = np.reshape(scalars_2, (samples_to_generate,1))
+
+    vectors_to_sample = (sampled_vectors_1 * scalars_1) + (sampled_vectors_2 * scalars_2)
+
+    print('Generating training data...')
+
+    digits_to_include = 6
+
+    for i in range(samples_to_generate):
+        name = 'sample_' + str(scalars_1[i][0])[:digits_to_include] + '_' + str(scalars_2[i][0])[:digits_to_include]
+        sampled_image = service.get_image_from_vector(vectors_to_sample[i])
+        save_image(sampled_image, os.path.join(VAE_KERAS_GENERATED_TRAINING_IMAGES, name + '.jpg'))
 
 
 if __name__ == '__main__':
     # train_vae_keras()
-    # train_vae()
-    sample_vae(get_most_recent_vae_name())
-    # make_quad(get_most_recent_vae_name())
+
+    # sample_vae(get_most_recent_vae_name())
+    make_quad(get_most_recent_vae_name())
     # encoder, decoder = load_vae(get_most_recent_vae_name())
+
+    # generate_stylizer_training_data(get_most_recent_vae_name(), 200, False)
