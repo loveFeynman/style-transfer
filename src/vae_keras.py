@@ -85,22 +85,11 @@ def vae_encoder_keras():
 
     encoder = tf.keras.layers.Flatten()(encoder)
 
-    def make_sample(args):
-        mean, st_dev = args
-        random_sample = tf.random_normal([tf.keras.backend.shape(mean)[0], LATENT_DIMS])
-        return mean + (st_dev * random_sample)
-
     mean = tf.keras.layers.Dense(LATENT_DIMS)(encoder)
     st_dev = tf.keras.layers.Dense(LATENT_DIMS, kernel_initializer=tf.zeros_initializer())(encoder)
     # sample = tf.keras.layers.Lambda(make_sample, output_shape=[None, 4])([mean, st_dev])
     sample = SampleLayer()([mean, st_dev])
     model = tf.keras.Model(inputs=network_input, outputs=[mean, st_dev, sample])
-
-    # mean = tf.keras.layers.Dense(LATENT_DIMS)(encoder)
-    # st_dev = tf.keras.layers.Dense(LATENT_DIMS, kernel_initializer=tf.zeros_initializer())(encoder)
-    # random_sample = tf.random_normal([tf.shape(encoder)[0], LATENT_DIMS])
-    # # sample = tf.keras.layers.Add()([mean, tf.multiply(st_dev, random_sample)])
-    # model = tf.keras.Model(inputs=network_input, outputs=[mean, st_dev]) #, st_dev, mean + (st_dev * random_sample)])
 
     return model
 
