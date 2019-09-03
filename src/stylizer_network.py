@@ -11,15 +11,15 @@ from image_utilities import flip_BR, pixel_to_decimal, save_image, CocoDatasetMa
 
 # using code from (https://www.tensorflow.org/beta/tutorials/generative/style_transfer) at points
 
+from constants import *
 
-TEST_DIR = '../res/test'
 TEST_IMG = os.path.join(TEST_DIR, 'vgg_test_1.jpg')
 LOGGER_PATH = '../res/test/log.txt'
 
 style_image_1 = '../res/styles/honeycomb_small.jpg'
 # style_image_1 = '../res/styles/starry_night_small.jpg'
 content_image_1 = '../res/content/antelope_small.jpg'
-output_path = '../res/test'
+output_path = STYLIZED_IMAGES_DIR
 
 
 
@@ -30,7 +30,7 @@ total_variation_weight = 1e8
 learning_rate = 0.001
 
 steps_per_epoch = 50
-epochs = 50
+epochs = 500
 
 tf.enable_eager_execution()
 
@@ -72,9 +72,10 @@ class StyleContentModel(tf.keras.models.Model):
 class StyleNet(tf.keras.models.Model):
     def __init__(self):
         super().__init__()
-        filter_counts = [16, 16, 16, 16, 16, 16, 16, 16, 16]
-        kernel_sizes = [3, 3, 3, 3, 3, 3, 3, 3, 3]
-        filter_strides = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+        filter_counts = [32 for x in range(9)] #[16, 16, 16, 16, 16, 16, 16, 16, 16]
+        kernel_sizes = [5 for x in range(9)] #[3, 3, 3, 3, 3, 3, 3, 3, 3]
+        filter_strides = [1 for x in range(9)] #[1, 1, 1, 1, 1, 1, 1, 1, 1]
         self.use_batch_norm = True
         activation = tf.nn.elu
         layer = 0
@@ -167,16 +168,9 @@ def style_net(): # As far as I know, this is identical to StyleNet()
 
     return model
 
-
-    # model = Sequential()
-    # model.add(Conv2D(filter_counts[0], kernel_sizes[0], strides[0], padding='valid', activation=activation))
-    # model.add(Conv2D(filter_counts[1], kernel_sizes[1], strides[1], padding='same', activation=activation))
-    # model.add(Conv2D(filter_counts[2], kernel_sizes[2], strides[2], padding='same', activation=activation))
-    # model.add(Conv2D(filter_counts[3], kernel_sizes[3], strides[3], padding='same', activation=activation))
-
 def train_stylizer():
     stylizer_network = style_net()
-    #stylizer_network = StyleNet()
+    #stylizer_network = StyleNet() # WORKS EQUALLY AS WELL AS PREVIOUS LINE(?)
     style_image = pixel_to_decimal(flip_BR(cv2.imread(style_image_1))).reshape((1, 224, 224, 3))
     content_image = pixel_to_decimal(flip_BR(cv2.imread(content_image_1))).reshape((1, 224, 224, 3))
     content_layers = ['block5_conv2']
@@ -235,7 +229,7 @@ def train_stylizer_on_dataset():
 
     print('Loading images...')
     dataset_manager = CocoDatasetManager(target_dim=(224,224), num_images = 1000)
-    print('Done loading images')
+    print('Done loading images.')
     images = dataset_manager.get_images()
     BATCH_SIZE = 20
     batch_position = 0
@@ -249,7 +243,7 @@ def train_stylizer_on_dataset():
         batch_position += 1
         batch_position %= int(len(images)/BATCH_SIZE)
         trained_img = stylizer_network(content_image).numpy()[0]
-        save_image(trained_img, os.path.join(output_path, 'style_transfer_sample_' + str(epoch) + '.jpg'))
+        save_image(trained_img, os.path.join(output_path, str(epoch) + '_style_transfer_sample.jpg'))
 
 def clip_0_1(image):
   return tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)

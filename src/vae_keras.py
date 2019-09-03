@@ -193,8 +193,8 @@ def train_vae_keras():
                 sample_image = decoder(sample_latent)
                 sampled_img = sample_image[0]
                 keras_samples_dir = 'keras_samples'
-                save_image(test_img,os.path.join(SAMPLES_DIR, keras_samples_dir, 'vae_keras_' + str(epoch) + '_truth.jpg'))
-                save_image(sampled_img.numpy(),os.path.join(SAMPLES_DIR, keras_samples_dir, 'vae_keras_' + str(epoch) + '_sample.jpg'))
+                save_image(test_img, os.path.join(TEST_DIR, keras_samples_dir, 'vae_keras_' + str(epoch) + '_truth.jpg'))
+                save_image(sampled_img.numpy(), os.path.join(TEST_DIR, keras_samples_dir, 'vae_keras_' + str(epoch) + '_sample.jpg'))
                 epoch_end = time.time()
                 elapsed = epoch_end - train_start_time
                 time_digits = 6
@@ -282,7 +282,7 @@ def make_quad(model_name):
             sample_output = service.get_image_from_vector(weighted_vector)
             quad_output[x*INPUT_DIM[1]:(x+1)*INPUT_DIM[1],y*INPUT_DIM[2]:(y+1)*INPUT_DIM[2],:] = sample_output
 
-    save_image(quad_output, join(SAMPLES_DIR, 'quad.jpg'))
+    save_image(quad_output, join(TEST_DIR, 'quad.jpg'))
 
 class VAEService(threading.Thread):
     def __init__(self, model_name):

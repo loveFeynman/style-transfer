@@ -7,14 +7,16 @@ import matplotlib.pyplot as plt
 from image_utilities import flip_BR, pixel_to_decimal, save_image
 
 # mostly just messing with tensorflow-provided code for style transfer (https://www.tensorflow.org/beta/tutorials/generative/style_transfer)
+from constants import *
 
-TEST_DIR = '../res/test'
+
+
 TEST_IMG = os.path.join(TEST_DIR, 'vgg_test_1.jpg')
 
-style_image_1 = '../res/styles/honeycomb_small.jpg'
-# style_image_1 = '../res/styles/starry_night_small.jpg'
+# style_image_1 = '../res/styles/honeycomb_small.jpg'
+style_image_1 = '../res/styles/starry_night_small.jpg'
 content_image_1 = '../res/content/antelope_small.jpg'
-output_path = '../res/test'
+output_path = STYLE_TRANSFER_IMAGES_DIR
 
 style_weight = 1e-2
 content_weight = 1e4

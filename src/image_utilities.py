@@ -2,7 +2,9 @@ import cv2
 from os.path import join
 import os
 import numpy as np
+import imageio
 from typing import overload
+import constants
 
 STYLES_DIR = '../res/styles'
 TEST_DIR = '../res/test'
@@ -180,5 +182,28 @@ def debug(str):
         print(str)
 
 
+def generate_gif_from_images_in_dir(dir_path):
+    output_path = os.path.join(dir_path, os.path.basename(os.path.normpath(dir_path) + '.gif'))
+    files = os.listdir(dir_path)
+    files = [os.path.join(dir_path, x) for x in files if '.jpg' in x]
+    files = sort_numerical(files)
+    print('Generating gif of ' + str(len(files)) + ' files')
+    with imageio.get_writer(output_path, mode='I') as stream:
+        for file in files:
+            image = imageio.imread(file)
+            stream.append_data(image)
+    # images = [imageio.imread(x) for x in files]
+    # images = images + list(reversed(images))
+    # imageio.mimsave(output_path, images)
+
+
+def sort_numerical(items):
+    items.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
+    return items
+
+
+
 if __name__ == '__main__':
-    test()
+    #test()
+    generate_gif_from_images_in_dir(os.path.join(constants.STYLE_TRANSFER_IMAGES_DIR, 'starry_night'))
+    generate_gif_from_images_in_dir(os.path.join(constants.STYLE_TRANSFER_IMAGES_DIR, 'honeycomb'))
