@@ -13,3 +13,5 @@ STYLIZED_IMAGES_DIR = os.path.join(TEST_DIR, 'stylized_images')
 STYLE_TRANSFER_IMAGES_DIR = os.path.join(TEST_DIR, 'style_transfer')
 
 VAE_KERAS_GENERATED_TRAINING_IMAGES = os.path.join(TRAINING_IMAGES_DIR, 'vae_keras_generated')
+
+STYLIZER_NETWORK_MODELS_DIR = os.path.join(MODELS_DIR, 'stylizer_network')
