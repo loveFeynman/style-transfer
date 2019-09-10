@@ -12,6 +12,7 @@ from tensorflow.python.keras.saving import model_from_json, load_model
 from image_utilities import ImageGenerator
 from image_utilities import *
 from constants import *
+from model_utilities import save_keras_model, load_keras_model, get_most_recent_model_name
 
 training_summaries = []
 
@@ -209,44 +210,44 @@ def train_vae_keras():
         # saver.save(sess, join(MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         # print('Model saved.')
 
-    model_name = str(time.time())[:10]
-    save_vae(encoder, decoder, model_name)
+    model_name = model_prefix + '_' + str(time.time())[:10]
+    save_keras_model((encoder, decoder), MODELS_DIR, model_name)
 
-
-def save_vae(encoder, decoder, model_name):
-    dir_name = os.path.join(MODELS_DIR, model_prefix + '_' + model_name)
-    os.mkdir(dir_name)
-    save_keras_model(encoder, dir_name, model_prefix + '_encoder_' + model_name)
-    save_keras_model(decoder, dir_name, model_prefix + '_decoder_' + model_name)
-
-
-def load_vae(model_name):
-    dir_name = os.path.join(MODELS_DIR, model_prefix + '_' + model_name)
-    encoder = load_keras_model(dir_name, model_prefix + '_encoder_' + model_name)
-    decoder = load_keras_model(dir_name, model_prefix + '_decoder_' + model_name)
-    return encoder, decoder
-
-
-def save_keras_model(model, dir, name):
-    # model.save_weights(os.path.join(dir, name + '.h5'))
-    # with open(os.path.join(dir, name + '.json'), 'w+') as js:
-    #     js.write(model.to_json())
-    model.save(os.path.join(dir, name + '.h5'))
-
-
-def load_keras_model(dir, name):
-    model = load_model(os.path.join(dir, name + '.h5'), custom_objects={'SampleLayer': SampleLayer})
-    # with open(os.path.join(dir, name + '.json')) as js:
-    #     model = model_from_json(js.read())
-    # model.load_weights(os.path.join(dir, name + '.h5'))
-    return model
-
-
-def get_most_recent_vae_name():
-    models = os.listdir(MODELS_DIR)
-    models.sort()
-    models = [x for x in models if model_prefix in x]
-    return models[-1].split('_')[-1]
+#
+# def save_vae(encoder, decoder, model_name):
+#     dir_name = os.path.join(MODELS_DIR, model_prefix + '_' + model_name)
+#     os.mkdir(dir_name)
+#     save_keras_model(encoder, dir_name, model_prefix + '_encoder_' + model_name)
+#     save_keras_model(decoder, dir_name, model_prefix + '_decoder_' + model_name)
+#
+#
+# def load_vae(model_name):
+#     dir_name = os.path.join(MODELS_DIR, model_prefix + '_' + model_name)
+#     encoder = load_keras_model(dir_name, model_prefix + '_encoder_' + model_name)
+#     decoder = load_keras_model(dir_name, model_prefix + '_decoder_' + model_name)
+#     return encoder, decoder
+#
+#
+# def save_keras_model(model, dir, name):
+#     # model.save_weights(os.path.join(dir, name + '.h5'))
+#     # with open(os.path.join(dir, name + '.json'), 'w+') as js:
+#     #     js.write(model.to_json())
+#     model.save(os.path.join(dir, name + '.h5'))
+#
+#
+# def load_keras_model(dir, name):
+#     model = load_model(os.path.join(dir, name + '.h5'), custom_objects={'SampleLayer': SampleLayer})
+#     # with open(os.path.join(dir, name + '.json')) as js:
+#     #     model = model_from_json(js.read())
+#     # model.load_weights(os.path.join(dir, name + '.h5'))
+#     return model
+#
+#
+# def get_most_recent_vae_name():
+#     models = os.listdir(MODELS_DIR)
+#     models.sort()
+#     models = [x for x in models if model_prefix in x]
+#     return models[-1].split('_')[-1]
 
 
 def make_quad(model_name):
@@ -292,7 +293,7 @@ class VAEService(threading.Thread):
 
     def run(self):
         print('VAEService starting...')
-        self.encoder, self.decoder = load_vae(self.model_name)
+        [self.encoder, self.decoder] = load_keras_model(MODELS_DIR, self.model_name, special_layers={'SampleLayer': SampleLayer})
         self.loaded = True
         print('VAEService running.')
 
@@ -386,7 +387,7 @@ if __name__ == '__main__':
     # train_vae_keras()
 
     # sample_vae(get_most_recent_vae_name())
-    make_quad(get_most_recent_vae_name())
+    make_quad(get_most_recent_model_name(MODELS_DIR, model_prefix))
     # encoder, decoder = load_vae(get_most_recent_vae_name())
 
     # generate_stylizer_training_data(get_most_recent_vae_name(), 200, False)
