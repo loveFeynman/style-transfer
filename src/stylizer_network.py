@@ -35,7 +35,7 @@ total_variation_weight = 1e8
 learning_rate = 0.001
 
 steps_per_epoch = 50
-epochs = 2
+epochs = 500
 
 tf.enable_eager_execution()
 
@@ -343,6 +343,83 @@ def red_net():
 
     return model
 
+
+def residual_blocks():
+    activation = tf.nn.elu
+
+    filter_count = 16
+    kernel_size = 5
+    kernel_strides = 1
+
+    merge_layer_type = tf.keras.layers.Add()
+    # merge_layer_type = tf.keras.layers.Concatenate(axis=3)
+    use_hourglass = True
+
+    num_conv_layers = 5
+    num_deconv_layers = num_conv_layers
+    num_residual_blocks = 5
+
+    def conv_layer(layer_input, layer_activation=activation, layer_stride=kernel_strides, use_batch_norm=True):
+        layer = tf.keras.layers.Conv2D(filter_count, kernel_size, layer_stride, padding='same')(layer_input)
+        if use_batch_norm:
+            layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        return layer
+
+    def deconv_layer(layer_input, layer_activation=activation, num_filters=filter_count, use_batch_norm=True):
+        layer = tf.keras.layers.Conv2DTranspose(num_filters, kernel_size, kernel_strides, padding='same')(layer_input)
+        if use_batch_norm:
+            layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        return layer
+
+    def residual_block(layer_input, layer_activation=activation):
+        '''
+        uses BN after add vs before
+        reference http://torch.ch/blog/2016/02/04/resnets.html
+        for other options
+        '''
+        layer = tf.keras.layers.Conv2D(filter_count, kernel_size, 1, padding='same')(layer_input)
+        layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        layer = tf.keras.layers.Conv2D(filter_count, kernel_size, 1, padding='same')(layer)
+        layer = merge_layer_type([layer, layer_input])
+        layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        return layer
+
+    network_input = tf.keras.layers.Input(shape=(224, 224, 3))
+
+    conv_layers = []
+    deconv_layers = []
+
+    layer = network_input
+    for i in range(num_conv_layers):
+        layer = conv_layer(layer)
+        conv_layers.append(layer)
+
+    for i in range(num_residual_blocks):
+        layer = residual_block(layer)
+
+    if use_hourglass:
+        layer = merge_layer_type([layer, conv_layers[-1]])
+
+    layer = deconv_layer(layer)
+    deconv_layers.append(layer)
+
+    for i in range(1, num_conv_layers - 1):
+        reference_conv_layer = conv_layers[-(i + 1)]
+        if use_hourglass:
+            layer = merge_layer_type([layer, reference_conv_layer])
+        layer = deconv_layer(layer)
+        deconv_layers.append(layer)
+
+    if use_hourglass:
+        layer = merge_layer_type([layer, conv_layers[0]])
+    layer = deconv_layer(layer, layer_activation=tf.nn.sigmoid, num_filters=3)
+
+    return tf.keras.Model(inputs=network_input, outputs=layer)
+
 def train_stylizer():
     stylizer_network = style_net()
 
@@ -382,7 +459,7 @@ def train_stylizer():
     save_keras_model(stylizer_network, MODELS_DIR, model_name)
 
 def train_stylizer_on_dataset():
-    stylizer_network = style_net()
+    stylizer_network = residual_blocks()
     style_image = load_image(style_image_1)
     content_image = load_image(content_image_1)
     content_layers = ['block5_conv2']
@@ -494,8 +571,6 @@ def test_model(model_name):
     save_image(output.numpy(), os.path.join(TEST_DIR, 'stylized_test.jpg'))
 
 if __name__ == '__main__':
-    #test()
-    # train_stylizer_on_dataset()
     # train_stylizer()
     train_stylizer_on_dataset()
-    test_model(get_most_recent_model_name(MODELS_DIR, model_prefix))
+    # test_model(get_most_recent_model_name(MODELS_DIR, model_prefix))

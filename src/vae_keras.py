@@ -30,7 +30,7 @@ kl_loss_divisor = float(INPUT_DIM[1]*INPUT_DIM[2])
 use_mse_loss = True
 
 LEARNING_RATE = 0.001
-NUM_EPOCHS = 4000
+NUM_EPOCHS = 1000
 MINI_BATCH_SIZE = 64
 num_samples_per_epoch = 512
 
