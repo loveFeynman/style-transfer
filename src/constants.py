@@ -1,11 +1,14 @@
 import os
 import types
 
-LOG_DIR = '../tensorboard_dir/'
-TRAINING_IMAGES_DIR = '../res/training_images'
-MODELS_DIR = '../models'
-TEST_DIR = '../res/test'
-STYLES_DIR = '../res/styles'
+def relative(path):
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+
+TENSORBOARD_DIR = relative('../tensorboard_dir/')
+TRAINING_IMAGES_DIR = relative('../res/training_images')
+MODELS_DIR = relative('../models')
+TEST_DIR = relative('../res/test')
+STYLES_DIR = relative('../res/styles')
 
 VAE_KERAS_GENERATED_SAMPLES_DIR = os.path.join(TEST_DIR, 'keras_generated_samples')
 

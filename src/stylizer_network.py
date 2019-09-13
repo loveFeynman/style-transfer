@@ -1,3 +1,4 @@
+import sys
 import time
 
 import cv2
@@ -10,12 +11,13 @@ from tensorflow.python.keras import Sequential
 from tensorflow.python.keras.layers import Conv2D, MaxPooling2D, Dropout
 from tensorflow.python.keras.saving import load_model
 
+import model_utilities
 from image_utilities import flip_BR, pixel_to_decimal, save_image, CocoDatasetManager, open_image, image_3d_to_4d, load_image
 
 # using code from (https://www.tensorflow.org/beta/tutorials/generative/style_transfer) at points
 
 from constants import *
-from model_utilities import save_keras_model, load_keras_model, get_most_recent_model_name
+from model_utilities import save_keras_model, load_keras_model, get_most_recent_model_name, LayerConfig
 
 TEST_IMG = os.path.join(TEST_DIR, 'vgg_test_1.jpg')
 LOGGER_PATH = '../res/test/log.txt'
@@ -24,18 +26,23 @@ LOGGER_PATH = '../res/test/log.txt'
 style_image_1 = '../res/styles/starry_night_small.jpg'
 content_image_1 = '../res/content/antelope_small.jpg'
 content_image_2 = '../res/content/sparrow_small.jpg'
+content_image_3 = '../res/content/logo_small.jpg'
+
+
 output_path = STYLIZED_IMAGES_DIR
 
 model_prefix = 'STYLIZER'
 
 style_weight = 1e-2
 content_weight = 1e4
-total_variation_weight = 1e8
+total_variation_weight = 1e-5 # 1e8
 
 learning_rate = 0.001
 
 steps_per_epoch = 50
-epochs = 500
+epochs = 80
+BATCH_SIZE = 4
+
 
 tf.enable_eager_execution()
 
@@ -74,61 +81,6 @@ class StyleContentModel(tf.keras.models.Model):
 
         return {'content': content_dict, 'style': style_dict}
 
-''' redundant since style_net() exists
-class StyleNet(tf.keras.models.Model):
-    def __init__(self):
-        super().__init__()
-
-        filter_counts = [32 for x in range(9)] #[16, 16, 16, 16, 16, 16, 16, 16, 16]
-        kernel_sizes = [5 for x in range(9)] #[3, 3, 3, 3, 3, 3, 3, 3, 3]
-        filter_strides = [1 for x in range(9)] #[1, 1, 1, 1, 1, 1, 1, 1, 1]
-        self.use_batch_norm = True
-        activation = tf.nn.elu
-        layer = 0
-
-        self.downsize_1 = tf.keras.layers.Conv2D(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='valid')
-        layer += 1
-        self.downsize_2 = tf.keras.layers.Conv2D(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='valid')
-        layer += 1
-        self.downsize_2_bn = tf.keras.layers.BatchNormalization()
-
-        self.flat_1 = tf.keras.layers.Conv2D(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='same')
-        layer += 1
-        self.flat_2 = tf.keras.layers.Conv2D(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='same')
-        layer += 1
-        self.flat_2_bn = tf.keras.layers.BatchNormalization()
-
-        self.flat_3 = tf.keras.layers.Conv2D(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='same')
-        layer += 1
-        self.flat_4 = tf.keras.layers.Conv2D(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='same')
-        layer += 1
-        self.flat_4_bn = tf.keras.layers.BatchNormalization()
-
-        self.upsample_layers_1 = tf.keras.layers.Conv2DTranspose(filter_counts[layer], kernel_sizes[layer], filter_strides[layer], activation=activation, padding='valid')
-        layer += 1
-        self.upsample_layers_2 = tf.keras.layers.Conv2DTranspose(3, kernel_sizes[layer], filter_strides[layer], activation=activation, padding='valid')
-        layer += 1
-        self.upsample_layers_2_bn = tf.keras.layers.BatchNormalization()
-
-    def call(self, inputs):
-        value_1 = self.downsize_1(inputs)
-        value_2 = self.downsize_2(value_1)
-        if self.use_batch_norm:
-            value_2 = self.downsize_2_bn(value_2)
-        value = self.flat_1(value_2)
-        value = self.flat_2(value)
-        if self.use_batch_norm:
-            value = self.flat_2_bn(value)
-        value = self.flat_3(value)
-        value = self.flat_4(value)
-        if self.use_batch_norm:
-            value = self.flat_4_bn(value)
-        value = self.upsample_layers_1(value + value_2)
-        value = self.upsample_layers_2(value + value_1)
-        if self.use_batch_norm:
-            value = self.upsample_layers_2_bn(value)
-        return value
-'''
 
 def style_net(): # As far as I know, this is identical to StyleNet()
     filter_counts = [16 for x in range(9)]  # [16, 16, 16, 16, 16, 16, 16, 16, 16]
@@ -343,7 +295,6 @@ def red_net():
 
     return model
 
-
 def residual_blocks():
     activation = tf.nn.elu
 
@@ -353,7 +304,7 @@ def residual_blocks():
 
     merge_layer_type = tf.keras.layers.Add()
     # merge_layer_type = tf.keras.layers.Concatenate(axis=3)
-    use_hourglass = True
+    use_hourglass = False
 
     num_conv_layers = 5
     num_deconv_layers = num_conv_layers
@@ -420,6 +371,109 @@ def residual_blocks():
 
     return tf.keras.Model(inputs=network_input, outputs=layer)
 
+def residual_blocks_2():
+    '''
+    32, 9x9, stride 1
+    64, 3x3, s 2
+    128, 3x3, s2
+
+    residual block x 5
+
+    64, 3x3, s2
+    32, 3x3, s2
+    3, 9x9, s1
+
+
+
+    :return:
+    '''
+    activation = tf.nn.relu
+
+    filter_count = 128
+    kernel_size = 5
+    kernel_strides = 1
+
+    merge_layer_type = tf.keras.layers.Add()
+
+    num_residual_blocks = 3
+
+    def conv_layer(layer_input, layer_activation=activation, num_filters=filter_count, filter_size=kernel_size, layer_stride=kernel_strides, use_batch_norm=True):
+        layer = tf.keras.layers.Conv2D(num_filters, filter_size, layer_stride, padding='same')(layer_input)
+        if use_batch_norm:
+            layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        return layer
+
+    def deconv_layer(layer_input, layer_activation=activation, num_filters=filter_count, filter_size=kernel_size, layer_stride=kernel_strides, use_batch_norm=True):
+        layer = tf.keras.layers.Conv2DTranspose(num_filters, filter_size, layer_stride, padding='same')(layer_input)
+        if use_batch_norm:
+            layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        return layer
+
+    def residual_block(layer_input, layer_activation=activation):
+        '''
+        uses BN after add vs before
+        reference http://torch.ch/blog/2016/02/04/resnets.html
+        for other options
+        '''
+        layer = tf.keras.layers.Conv2D(filter_count, kernel_size, 1, padding='same')(layer_input)
+        layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        layer = tf.keras.layers.Conv2D(filter_count, kernel_size, 1, padding='same')(layer)
+        layer = merge_layer_type([layer, layer_input])
+        layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.Activation(layer_activation)(layer)
+        return layer
+
+    network_input = tf.keras.layers.Input(shape=(224, 224, 3))
+
+    layer = network_input
+
+    layer = conv_layer(layer, num_filters=32, filter_size=5, layer_stride=1)
+    layer = conv_layer(layer, num_filters=64, filter_size=3, layer_stride=1)
+    layer = conv_layer(layer, num_filters=128, filter_size=3, layer_stride=1)
+
+    for i in range(num_residual_blocks):
+        layer = residual_block(layer)
+
+    layer = deconv_layer(layer, num_filters=64, filter_size=3, layer_stride=1)
+    layer = deconv_layer(layer, num_filters=32, filter_size=3, layer_stride=1)
+    layer = deconv_layer(layer, num_filters=3, filter_size=5, layer_stride=1, layer_activation=tf.nn.sigmoid)
+
+    return tf.keras.Model(inputs=network_input, outputs=layer)
+
+def residual_blocks_3():
+    conv_layer_configs = [LayerConfig(32, 9, 1),
+                          LayerConfig(64, 3, 2),
+                          LayerConfig(128, 3, 2)]
+
+    residual_block_configs = [LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1)]
+
+    deconv_layer_configs = [LayerConfig(64, 3, 2),
+                            LayerConfig(32, 3, 2),
+                            LayerConfig(3, 9, 1, activation=tf.nn.sigmoid)]
+
+    model_builder = model_utilities.EagerModelBuilder
+    network_input = tf.keras.layers.Input(shape=(224, 224, 3))
+    layer = network_input
+
+    for x in conv_layer_configs:
+        layer = model_builder.conv_block(layer, x)
+
+    for x in residual_block_configs:
+        layer = model_builder.residual_block(layer, x)
+
+    for x in deconv_layer_configs:
+        layer = model_builder.deconv_block(layer, x)
+
+    layer = tf.identity(layer, name='network_output')
+    return network_input, layer
+
 def train_stylizer():
     stylizer_network = style_net()
 
@@ -459,9 +513,10 @@ def train_stylizer():
     save_keras_model(stylizer_network, MODELS_DIR, model_name)
 
 def train_stylizer_on_dataset():
-    stylizer_network = residual_blocks()
+    stylizer_network = residual_blocks_2()
     style_image = load_image(style_image_1)
-    content_image = load_image(content_image_1)
+    content_im_1 = load_image(content_image_1)
+    content_im_3 = load_image(content_image_3)
     content_layers = ['block5_conv2']
     style_layers = ['block1_conv1',
                     'block2_conv1',
@@ -470,9 +525,10 @@ def train_stylizer_on_dataset():
                     'block5_conv1']
     extractor = StyleContentModel(style_layers, content_layers)
     opt = tf.keras.optimizers.Adam(lr=learning_rate, beta_1=.99, epsilon=1e-1)
+    style_targets = extractor(style_image)['style']
 
     def train_step(input_image):
-        style_targets = extractor(style_image)['style']
+
         content_targets = extractor(input_image)['content']
         with tf.GradientTape() as tape:
             stylized_image = stylizer_network(input_image)
@@ -482,24 +538,39 @@ def train_stylizer_on_dataset():
         variables = stylizer_network.trainable_variables
         grad = tape.gradient(loss, variables)
         opt.apply_gradients(zip(grad,variables))
+        return loss
 
     print('Loading images...')
     dataset_manager = CocoDatasetManager(target_dim=(224,224), num_images = 1000)
-    print('Done loading images.')
     images = dataset_manager.get_images()
-    BATCH_SIZE = 20
-    batch_position = 0
+    print('Done loading images.')
+
+
+    train_start_time = time.time()
+
+
 
     for epoch in range(epochs):
         print('Epoch ' + str(epoch + 1) + ' of ' + str(epochs))
-        if batch_position == 0:
-            dataset_manager.shuffle_loaded_images()
-        for image in images[batch_position*BATCH_SIZE: (batch_position+1)*BATCH_SIZE]:
-            train_step(image.reshape((1,224,224,3)))
-        batch_position += 1
-        batch_position %= int(len(images)/BATCH_SIZE)
-        trained_img = stylizer_network(content_image).numpy()[0]
-        save_image(trained_img, os.path.join(output_path, str(epoch) + '_style_transfer_sample.jpg'))
+        num_training_steps = int(len(images) / BATCH_SIZE) + 1
+
+        for step in range(num_training_steps):
+            start = min(len(images), step * BATCH_SIZE)
+            end = min(len(images), (step + 1) * BATCH_SIZE)
+            batch = np.array(images[start:end])
+            if start == end:
+                continue
+
+            full_loss = train_step(batch)
+            if step == 0:
+                trained_img = stylizer_network(content_im_1).numpy()[0]
+                save_image(trained_img, os.path.join(output_path, str(epoch) + '_style_transfer_sample_1.jpg'))
+                epoch_end = time.time()
+                elapsed = epoch_end - train_start_time
+                time_digits = 6
+                ETA = ((epoch_end - train_start_time) / max(1, epoch)) * (epochs - epoch)
+                print('loss: ' + str(full_loss.numpy()) + ' | elapsed: ' + str(elapsed/60.)[:time_digits] + ' min | remaining training time: ' + str(ETA/60.)[:time_digits] + ' min')
+
 
     print('Saving model...')
     model_name = model_prefix + '_' + str(time.time())[:10]
