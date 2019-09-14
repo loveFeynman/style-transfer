@@ -1,3 +1,5 @@
+import time
+
 import cv2
 from os.path import join
 import os
@@ -70,11 +72,14 @@ class DatasetManager:
     def __init__(self, directory, target_dim = (224, 224), num_images = None):
         self.images = []
         self.target_dim = target_dim
+        debug('Beginning image load')
         self.load_images(directory, num_images)
 
     def load_images(self, directory, num_images = None):
+        start = time.time()
         files = os.listdir(directory)
         debug('Found ' + str(len(files)) + ' images in \"' + directory + '\"')
+        debug('duration = ' + str(time.time() - start))
 
         for file in files:
             if len(self.images) > num_images:

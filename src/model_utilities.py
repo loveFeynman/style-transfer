@@ -161,14 +161,20 @@ class EagerModelBuilder(ModelBuilder):
 
 class StyleTransfer:
     STYLE_WEIGHT = 1e-2
-    TOTAL_VARIATION_WEIGHT = 1e8
+    TOTAL_VARIATION_WEIGHT = 1e-4 #1e-5 #1e8
     CONTENT_WEIGHT = 1e4
-    VGG_STYLE_TARGET_LAYER_NAMES = ['block1_conv2',
-                                    'block2_conv2',
-                                    'block3_conv4',
-                                    'block4_conv4',
-                                    'block5_conv4']
-    VGG_CONTENT_TARGET_LAYER_NAMES = ['block3_conv4']
+    # VGG_STYLE_TARGET_LAYER_NAMES = ['block1_conv2',
+    #                                 'block2_conv2',
+    #                                 'block3_conv4',
+    #                                 'block4_conv4',
+    #                                 'block5_conv4']
+    # VGG_CONTENT_TARGET_LAYER_NAMES = ['block5_conv4']
+    VGG_CONTENT_TARGET_LAYER_NAMES = ['block5_conv2']
+    VGG_STYLE_TARGET_LAYER_NAMES = ['block1_conv1',
+                                    'block2_conv1',
+                                    'block3_conv1',
+                                    'block4_conv1',
+                                    'block5_conv1']
 
     @staticmethod
     def clip_0_1(image):
@@ -205,5 +211,5 @@ class StyleTransfer:
         style_loss_weighted = StyleTransfer.sum_mse(vgg_style_outputs, style_targets) * style_weight / len(vgg_content_outputs)
         content_loss_weighted = StyleTransfer.sum_mse(vgg_content_outputs, content_targets) * content_weight
         total_variation_loss_weighted = StyleTransfer.total_variation_loss(style_network_outputs) * total_variation_weight
-        return style_loss_weighted + content_loss_weighted + total_variation_loss_weighted
+        return style_loss_weighted + content_loss_weighted + total_variation_loss_weighted, style_loss_weighted, content_loss_weighted, total_variation_loss_weighted
 
