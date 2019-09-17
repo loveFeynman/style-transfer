@@ -161,7 +161,7 @@ class EagerModelBuilder(ModelBuilder):
 
 class StyleTransfer:
     STYLE_WEIGHT = 1e-2
-    TOTAL_VARIATION_WEIGHT = 1e-4 #1e-5 #1e8
+    TOTAL_VARIATION_WEIGHT = 1e-4#use 1e8 for normal style transfer
     CONTENT_WEIGHT = 1e4
     # VGG_STYLE_TARGET_LAYER_NAMES = ['block1_conv2',
     #                                 'block2_conv2',
