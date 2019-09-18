@@ -35,19 +35,23 @@ def build_vgg_network():
 
 
 def build_style_network():
-    conv_layer_configs = [LayerConfig(32, 9, 1, padding='valid'),
-                          LayerConfig(64, 3, 2, padding='same'),
-                          LayerConfig(128, 3, 2, padding='same')]
+    conv_layer_configs = [LayerConfig(32, 9, 1),
+                          LayerConfig(16, 5, 1),
+                          LayerConfig(16, 3, 1),
+                          LayerConfig(64, 3, 2),
+                          LayerConfig(128, 3, 2)]
 
-    residual_block_configs = [LayerConfig(128, 3, 1, padding='same'),
-                              LayerConfig(128, 3, 1, padding='same'),
-                              LayerConfig(128, 3, 1, padding='same'),
-                              LayerConfig(128, 3, 1, padding='same'),
-                              LayerConfig(128, 3, 1, padding='same')]
+    residual_block_configs = [LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1),
+                              LayerConfig(128, 3, 1)]
 
-    deconv_layer_configs = [LayerConfig(64, 3, 2, padding='same'),
-                            LayerConfig(32, 3, 2, padding='same'),
-                            LayerConfig(3, 9, 1, activation=tf.nn.sigmoid, padding='valid')]
+    deconv_layer_configs = [LayerConfig(64, 3, 2),
+                            LayerConfig(32, 3, 2),
+                            LayerConfig(16, 3, 1),
+                            LayerConfig(16, 5, 1),
+                            LayerConfig(3, 9, 1, activation=tf.nn.sigmoid)]
 
     # conv_layer_configs = [LayerConfig(32, 9, 1),
     #                       LayerConfig(64, 3, 1),
@@ -94,20 +98,12 @@ def train_style_network():
 
     print('Loading images...')
     dataset_manager = CocoDatasetManager(target_dim=(224, 224), num_images=TOTAL_IMAGES)
-
     print('Done loading images.')
 
     with tf.name_scope('style_network'):
         style_network = build_style_network()
     with tf.name_scope('vgg_network'):
         vgg_network = build_vgg_network()
-
-
-    # for l in style_network.layers:
-    #     print('---')
-    #     print(l)
-    #     print(l.input_shape)
-    #     print(l.output_shape)
 
     style_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='style_network_input')
     vgg_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='vgg_network_input')
@@ -143,7 +139,7 @@ def train_style_network():
     with tf.keras.backend.get_session() as session:
         session.run(tf.variables_initializer(optimizer.variables() + style_network.trainable_variables))
         writer.add_graph(session.graph)
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(save_relative_paths=True)
 
         sample_net_out = session.run(style_network_output, feed_dict={style_network_input: content_image_1})
         print(sample_net_out.shape)
@@ -399,6 +395,7 @@ def normal_style_transfer2():
 
 class StyleNetService(threading.Thread):
     def __init__(self, model_name):
+        tf.logging.set_verbosity(tf.logging.ERROR)
         super().__init__()
         self.model_name = model_name
         self.loaded = False
@@ -408,19 +405,13 @@ class StyleNetService(threading.Thread):
         model_dir = os.path.join(constants.MODELS_DIR, self.model_name)
         meta_name = 'saved_' + self.model_name + '-0.meta'
         self.session = tf.Session()
-        saver = tf.train.import_meta_graph(os.path.join(model_dir, meta_name))
+        # saver = tf.train.import_meta_graph(os.path.join(model_dir, meta_name))
+        saver = tf.compat.v1.train.import_meta_graph(os.path.join(model_dir, meta_name))
         saver.restore(self.session, tf.train.latest_checkpoint(model_dir))
-        # for x in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='style_network'):
-        #     print(x)
-        #
-        # print('---')
-        #
-        # for x in tf.get_default_graph().as_graph_def().node:
-        #     if 'style_network' in x.name and 'Initialize' not in x.name and 'cond' not in x.name and 'batch_norm' not in x.name and 'Adam' not in x.name:
-        #         print(x.name)
+
 
         self.network_input = self.session.graph.get_tensor_by_name('style_network/input_1:0')
-        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_20/Sigmoid:0')
+        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_24/Sigmoid:0')
 
         print('StyleNetService running.')
         self.loaded = True
@@ -436,6 +427,7 @@ class StyleNetService(threading.Thread):
     def wait_for_ready(self, increment = .1):
         while not self.loaded:
             time.sleep(increment)
+
 
 def test_on_image():
     # target_image = load_image(CONTENT_IMAGE_2)

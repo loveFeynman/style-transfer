@@ -8,7 +8,7 @@ from image_utilities import sort_numerical
 
 
 class LayerConfig:
-    def __init__(self, num_filters, filter_size, stride, padding='valid', activation=tf.nn.relu, use_batch_norm=True):
+    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=True):
         self.num_filters = num_filters
         self.filter_size = filter_size
         self.stride = stride

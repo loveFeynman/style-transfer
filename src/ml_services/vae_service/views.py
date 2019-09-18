@@ -4,12 +4,12 @@ import sys,os
 
 from django.views.decorators.csrf import csrf_exempt
 
-sys.path.append('./')
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), './constants.py'))
 # Create your views here.
-from vae import VAEService
-
-vae_service = VAEService('VAE_2019-07-12-14-51')
-vae_service.start()
+# from vae import VAEService
+#
+# vae_service = VAEService('VAE_2019-07-12-14-51')
+# vae_service.start()
 
 image_queue = []
 

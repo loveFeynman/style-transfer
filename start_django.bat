@@ -1,0 +1,1 @@
+python src/ml_services/manage.py runserver
