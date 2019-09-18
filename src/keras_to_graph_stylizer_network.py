@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 
 import tensorflow as tf
@@ -10,14 +11,17 @@ from image_utilities import load_image, CocoDatasetManager, save_image
 from model_utilities import LayerConfig, StyleTransfer
 
 LEARNING_RATE = 1e-3
-EPOCHS = 160
+EPOCHS = 30 #160
 BATCH_SIZE = 4
 TOTAL_IMAGES = 1000
 
 STYLE_IMAGE_1 = '../res/styles/starry_night_small.jpg'
+STYLE_IMAGE_1_LARGE = '../res/styles/starry_night.jpg'
 CONTENT_IMAGE_1 = '../res/content/antelope_small.jpg'
 CONTENT_IMAGE_2 = '../res/content/sparrow_small.jpg'
+CONTENT_IMAGE_2_LARGE = '../res/content/sparrow.jpg'
 
+model_prefix = 'STYLE_NET'
 
 def build_vgg_network():
     vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
@@ -31,19 +35,19 @@ def build_vgg_network():
 
 
 def build_style_network():
-    conv_layer_configs = [LayerConfig(32, 9, 1),
-                          LayerConfig(64, 3, 2),
-                          LayerConfig(128, 3, 2)]
+    conv_layer_configs = [LayerConfig(32, 9, 1, padding='valid'),
+                          LayerConfig(64, 3, 2, padding='same'),
+                          LayerConfig(128, 3, 2, padding='same')]
 
-    residual_block_configs = [LayerConfig(128, 3, 1),
-                              LayerConfig(128, 3, 1),
-                              LayerConfig(128, 3, 1),
-                              LayerConfig(128, 3, 1),
-                              LayerConfig(128, 3, 1)]
+    residual_block_configs = [LayerConfig(128, 3, 1, padding='same'),
+                              LayerConfig(128, 3, 1, padding='same'),
+                              LayerConfig(128, 3, 1, padding='same'),
+                              LayerConfig(128, 3, 1, padding='same'),
+                              LayerConfig(128, 3, 1, padding='same')]
 
-    deconv_layer_configs = [LayerConfig(64, 3, 2),
-                            LayerConfig(32, 3, 2),
-                            LayerConfig(3, 9, 1, activation=tf.nn.sigmoid)]
+    deconv_layer_configs = [LayerConfig(64, 3, 2, padding='same'),
+                            LayerConfig(32, 3, 2, padding='same'),
+                            LayerConfig(3, 9, 1, activation=tf.nn.sigmoid, padding='valid')]
 
     # conv_layer_configs = [LayerConfig(32, 9, 1),
     #                       LayerConfig(64, 3, 1),
@@ -61,7 +65,7 @@ def build_style_network():
 
 
     model_builder = model_utilities.EagerModelBuilder
-    network_input = tf.keras.layers.Input(shape=(224, 224, 3))
+    network_input = tf.keras.layers.Input(shape=(None, None, 3))
     layer = network_input
 
     for x in conv_layer_configs:
@@ -83,15 +87,14 @@ def vgg_preprocess(network_input):
     else:
         return tf.keras.applications.vgg19.preprocess_input(tf.multiply(network_input, 225.))
 
+
 def train_style_network():
-    style_image_1 = load_image(STYLE_IMAGE_1)
+    style_image_1 = load_image(STYLE_IMAGE_1_LARGE)
     content_image_1 = load_image(CONTENT_IMAGE_1)
-    # style_image_1 = vgg_preprocess(style_image_1)
-    # content_image_1 = vgg_preprocess(content_image_1)
 
     print('Loading images...')
     dataset_manager = CocoDatasetManager(target_dim=(224, 224), num_images=TOTAL_IMAGES)
-    images = dataset_manager.get_images()
+
     print('Done loading images.')
 
     with tf.name_scope('style_network'):
@@ -99,13 +102,18 @@ def train_style_network():
     with tf.name_scope('vgg_network'):
         vgg_network = build_vgg_network()
 
+
+    # for l in style_network.layers:
+    #     print('---')
+    #     print(l)
+    #     print(l.input_shape)
+    #     print(l.output_shape)
+
     style_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='style_network_input')
     vgg_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='vgg_network_input')
     [style_targets, content_targets] = vgg_network(vgg_preprocess(vgg_network_input))
-    # style_targets = [StyleTransfer.gram_matrix(x) for x in style_targets]
     style_network_output = style_network(style_network_input)
     style_layers, content_layers = vgg_network(vgg_preprocess(style_network_output))
-    # style_layers = [StyleTransfer.gram_matrix(x) for x in style_layers]
     style_target_placeholder = [tf.placeholder(tf.float32, shape=[None, None, None], name='style_target_placeholder_' + str(x)) for x in range(len(style_layers))]
     content_target_placeholder = [tf.placeholder(tf.float32, shape=[None, None, None, None], name='content_target_placeholder')]
 
@@ -113,7 +121,7 @@ def train_style_network():
                                                                               style_target_placeholder, content_target_placeholder,
                                                                               style_layers, content_layers,
                                                                               style_weight=1e-3,
-                                                                              content_weight=1e4,
+                                                                              content_weight=4e4,
                                                                               total_variation_weight=1e8)
     optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE) #learning_rate=0.02, beta1=.99, epsilon=1e-1)
     optimizer_op = optimizer.minimize(loss, var_list=[style_network.trainable_variables])
@@ -128,7 +136,7 @@ def train_style_network():
         training_summaries.append(tf.summary.scalar('Content Loss', content_loss))
         training_summaries.append(tf.summary.scalar('Total Variation Loss', total_var_loss))
     merged_summaries = tf.summary.merge(training_summaries)
-    model_name = time.strftime("STYLE_NET_%Y-%m-%d-%H-%M")
+    model_name = time.strftime(model_prefix + '_%Y-%m-%d-%H-%M')
     summary_output_dir = os.path.join(constants.TENSORBOARD_DIR, model_name)
     writer = tf.summary.FileWriter(summary_output_dir)
 
@@ -137,12 +145,16 @@ def train_style_network():
         writer.add_graph(session.graph)
         saver = tf.train.Saver()
 
+        sample_net_out = session.run(style_network_output, feed_dict={style_network_input: content_image_1})
+        print(sample_net_out.shape)
+
         style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
-        print(style_targets_sample[0])
 
         train_start_time = time.time()
 
         for epoch in range(EPOCHS):
+            dataset_manager.shuffle_loaded_images()
+            images = dataset_manager.get_images()
             print('Epoch ' + str(epoch + 1) + ' of ' + str(EPOCHS))
             num_training_steps = int(len(images) / BATCH_SIZE) + 1
 
@@ -171,7 +183,6 @@ def train_style_network():
                     writer.flush()
 
             sampled_image = session.run(style_network_output, feed_dict={style_network_input: content_image_1})
-            # print(sampled_image)
             save_image(sampled_image, os.path.join(constants.STYLIZED_IMAGES_DIR, str(epoch) + '_style_transfer_sample_1.jpg'))
             epoch_end = time.time()
             elapsed = epoch_end - train_start_time
@@ -182,11 +193,6 @@ def train_style_network():
         os.mkdir(os.path.join(constants.MODELS_DIR, model_name))
         saver.save(session, os.path.join(constants.MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         print('Model saved.')
-
-
-    # print('Saving model...')
-    # model_name = model_prefix + '_' + str(time.time())[:10]
-    # save_keras_model(stylizer_network, MODELS_DIR, model_name)
 
 
 def normal_style_transfer():
@@ -247,7 +253,7 @@ def normal_style_transfer():
         style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
         content_targets_sample = session.run(content_targets, feed_dict={vgg_network_input: content_image_1})
 
-        print(style_targets_sample[0])
+        #print(style_targets_sample[0])
 
 
         train_start_time = time.time()
@@ -391,8 +397,60 @@ def normal_style_transfer2():
         print('Model saved.')
 
 
+class StyleNetService(threading.Thread):
+    def __init__(self, model_name):
+        super().__init__()
+        self.model_name = model_name
+        self.loaded = False
+
+    def run(self):
+        print('StyleNetService starting...')
+        model_dir = os.path.join(constants.MODELS_DIR, self.model_name)
+        meta_name = 'saved_' + self.model_name + '-0.meta'
+        self.session = tf.Session()
+        saver = tf.train.import_meta_graph(os.path.join(model_dir, meta_name))
+        saver.restore(self.session, tf.train.latest_checkpoint(model_dir))
+        # for x in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='style_network'):
+        #     print(x)
+        #
+        # print('---')
+        #
+        # for x in tf.get_default_graph().as_graph_def().node:
+        #     if 'style_network' in x.name and 'Initialize' not in x.name and 'cond' not in x.name and 'batch_norm' not in x.name and 'Adam' not in x.name:
+        #         print(x.name)
+
+        self.network_input = self.session.graph.get_tensor_by_name('style_network/input_1:0')
+        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_20/Sigmoid:0')
+
+        print('StyleNetService running.')
+        self.loaded = True
+
+    def run_on_image(self, input_image):
+        output_image = self.session.run(self.network_output, feed_dict={self.network_input: input_image})
+        return output_image
+
+    def close(self):
+
+        self.session.close()
+
+    def wait_for_ready(self, increment = .1):
+        while not self.loaded:
+            time.sleep(increment)
+
+def test_on_image():
+    # target_image = load_image(CONTENT_IMAGE_2)
+    target_image = load_image(CONTENT_IMAGE_2_LARGE)
+
+    service = StyleNetService(model_utilities.get_most_recent_model_name(constants.MODELS_DIR, model_prefix))
+    service.start()
+    service.wait_for_ready()
+
+    output_image = service.run_on_image(target_image)
+
+    save_image(output_image, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
 
 
 if __name__=='__main__':
-    train_style_network()
-    #normal_style_transfer()
+    # train_style_network()
+    # normal_style_transfer()
+    test_on_image()

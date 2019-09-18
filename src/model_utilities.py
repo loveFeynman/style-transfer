@@ -8,7 +8,7 @@ from image_utilities import sort_numerical
 
 
 class LayerConfig:
-    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=True):
+    def __init__(self, num_filters, filter_size, stride, padding='valid', activation=tf.nn.relu, use_batch_norm=True):
         self.num_filters = num_filters
         self.filter_size = filter_size
         self.stride = stride
@@ -129,7 +129,7 @@ class GraphModelBuilder(ModelBuilder):
 class EagerModelBuilder(ModelBuilder):
     @staticmethod
     def conv_block(layer_input, config: LayerConfig):
-        conv_layer = tf.keras.layers.Conv2D(config.num_filters, config.filter_size, config.stride, config.padding)(layer_input)
+        conv_layer = tf.keras.layers.Conv2D(config.num_filters, config.filter_size, config.stride, padding=config.padding)(layer_input)
         if config.use_batch_norm:
             conv_layer = tf.keras.layers.BatchNormalization()(conv_layer)
         conv_layer = tf.keras.layers.Activation(config.activation)(conv_layer)
@@ -137,7 +137,7 @@ class EagerModelBuilder(ModelBuilder):
 
     @staticmethod
     def deconv_block(layer_input, config: LayerConfig):
-        deconv_layer = tf.keras.layers.Conv2DTranspose(config.num_filters, config.filter_size, config.stride, config.padding)(layer_input)
+        deconv_layer = tf.keras.layers.Conv2DTranspose(config.num_filters, config.filter_size, config.stride, padding=config.padding)(layer_input)
         if config.use_batch_norm:
             deconv_layer = tf.keras.layers.BatchNormalization()(deconv_layer)
         deconv_layer = tf.keras.layers.Activation(config.activation)(deconv_layer)
