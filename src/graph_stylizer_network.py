@@ -1,4 +1,8 @@
 import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 import threading
 import time
 
@@ -15,11 +19,11 @@ EPOCHS = 30 #160
 BATCH_SIZE = 4
 TOTAL_IMAGES = 1000
 
-STYLE_IMAGE_1 = '../res/styles/starry_night_small.jpg'
-STYLE_IMAGE_1_LARGE = '../res/styles/starry_night.jpg'
-CONTENT_IMAGE_1 = '../res/content/antelope_small.jpg'
-CONTENT_IMAGE_2 = '../res/content/sparrow_small.jpg'
-CONTENT_IMAGE_2_LARGE = '../res/content/sparrow.jpg'
+STYLE_IMAGE_1 = os.path.join(HERE, '../res/styles/starry_night_small.jpg')
+STYLE_IMAGE_1_LARGE = os.path.join(HERE, '../res/styles/starry_night.jpg')
+CONTENT_IMAGE_1 = os.path.join(HERE, '../res/content/antelope_small.jpg')
+CONTENT_IMAGE_2 = os.path.join(HERE, '../res/content/sparrow_small.jpg')
+CONTENT_IMAGE_2_LARGE = os.path.join(HERE, '../res/content/sparrow.jpg')
 
 model_prefix = 'STYLE_NET'
 
@@ -36,8 +40,6 @@ def build_vgg_network():
 
 def build_style_network():
     conv_layer_configs = [LayerConfig(32, 9, 1),
-                          LayerConfig(16, 5, 1),
-                          LayerConfig(16, 3, 1),
                           LayerConfig(64, 3, 2),
                           LayerConfig(128, 3, 2)]
 
@@ -49,23 +51,7 @@ def build_style_network():
 
     deconv_layer_configs = [LayerConfig(64, 3, 2),
                             LayerConfig(32, 3, 2),
-                            LayerConfig(16, 3, 1),
-                            LayerConfig(16, 5, 1),
                             LayerConfig(3, 9, 1, activation=tf.nn.sigmoid)]
-
-    # conv_layer_configs = [LayerConfig(32, 9, 1),
-    #                       LayerConfig(64, 3, 1),
-    #                       LayerConfig(128, 3, 1)]
-    #
-    # residual_block_configs = [LayerConfig(128, 3, 1),
-    #                           LayerConfig(128, 3, 1),
-    #                           LayerConfig(128, 3, 1),
-    #                           LayerConfig(128, 3, 1),
-    #                           LayerConfig(128, 3, 1)]
-    #
-    # deconv_layer_configs = [LayerConfig(64, 3, 1),
-    #                         LayerConfig(32, 3, 1),
-    #                         LayerConfig(3, 9, 1, activation=tf.nn.sigmoid)]
 
 
     model_builder = model_utilities.EagerModelBuilder
@@ -395,7 +381,8 @@ def normal_style_transfer2():
 
 class StyleNetService(threading.Thread):
     def __init__(self, model_name):
-        tf.logging.set_verbosity(tf.logging.ERROR)
+        # tf.logging.set_verbosity(tf.logging.ERROR)
+        tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
         super().__init__()
         self.model_name = model_name
         self.loaded = False
@@ -411,7 +398,7 @@ class StyleNetService(threading.Thread):
 
 
         self.network_input = self.session.graph.get_tensor_by_name('style_network/input_1:0')
-        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_24/Sigmoid:0')
+        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_20/Sigmoid:0')
 
         print('StyleNetService running.')
         self.loaded = True
@@ -429,9 +416,8 @@ class StyleNetService(threading.Thread):
             time.sleep(increment)
 
 
-def test_on_image():
-    # target_image = load_image(CONTENT_IMAGE_2)
-    target_image = load_image(CONTENT_IMAGE_2_LARGE)
+def run_on_image(source_image_path, destination_path):
+    target_image = load_image(source_image_path)
 
     service = StyleNetService(model_utilities.get_most_recent_model_name(constants.MODELS_DIR, model_prefix))
     service.start()
@@ -439,10 +425,17 @@ def test_on_image():
 
     output_image = service.run_on_image(target_image)
 
-    save_image(output_image, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
+    save_image(output_image, destination_path)
 
 
 if __name__=='__main__':
-    # train_style_network()
-    # normal_style_transfer()
-    test_on_image()
+    if len(sys.argv) == 3:
+        src = sys.argv[1]
+        dest = sys.argv[2]
+        if os.path.exists(src):
+            run_on_image(src, dest)
+    else:
+        train_style_network()
+        # normal_style_transfer()
+        run_on_image(CONTENT_IMAGE_2_LARGE, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
+

@@ -1,16 +1,11 @@
-import threading
-import http.client
-import PyQt5
-from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtWidgets import QMainWindow, QApplication, QAction, qApp, QLabel, QLineEdit, QFileDialog, QPushButton, QComboBox, QSlider
+from PyQt5.QtWidgets import QMainWindow, QApplication, QLabel, QFileDialog, QPushButton, QSlider
 
-from image_utilities import save_image, flip_RB, flip_BR, pixel_to_decimal
-from vae import VAEService, get_most_recent_vae, decimal_to_pixel
+from image_utilities import flip_BR, pixel_to_decimal
+from outdated.vae import VAEService, get_most_recent_vae, decimal_to_pixel
 import time
 import cv2
-import numpy as np
 
 # class Renderer(threading.Thread):
 #     def __init__(self):

@@ -12,12 +12,12 @@ from django.views.decorators.csrf import csrf_exempt
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../'))
 
 import constants
-import keras_to_graph_stylizer_network
+import graph_stylizer_network
 import model_utilities
 from image_utilities import *
 
 
-service = keras_to_graph_stylizer_network.StyleNetService(model_utilities.get_most_recent_model_name(constants.MODELS_DIR, keras_to_graph_stylizer_network.model_prefix))
+service = graph_stylizer_network.StyleNetService(model_utilities.get_most_recent_model_name(constants.MODELS_DIR, graph_stylizer_network.model_prefix))
 service.start()
 
 @csrf_exempt

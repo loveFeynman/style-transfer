@@ -1,14 +1,13 @@
 import os
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 import types
 
-def relative(path):
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
-
-TENSORBOARD_DIR = relative('../tensorboard_dir/')
-TRAINING_IMAGES_DIR = relative('../res/training_images')
-MODELS_DIR = relative('../models')
-TEST_DIR = relative('../res/test')
-STYLES_DIR = relative('../res/styles')
+TENSORBOARD_DIR = os.path.join(HERE, '../tensorboard_dir/')
+TRAINING_IMAGES_DIR = os.path.join(HERE, '../res/training_images')
+MODELS_DIR = os.path.join(HERE, '../models')
+TEST_DIR = os.path.join(HERE, '../res/test')
+STYLES_DIR = os.path.join(HERE, '../res/styles')
 
 VAE_KERAS_GENERATED_SAMPLES_DIR = os.path.join(TEST_DIR, 'keras_generated_samples')
 
@@ -19,6 +18,10 @@ STYLE_TRANSFER_IMAGES_DIR = os.path.join(TEST_DIR, 'style_transfer')
 VAE_KERAS_GENERATED_TRAINING_IMAGES_DIR = os.path.join(TRAINING_IMAGES_DIR, 'vae_keras_generated')
 
 STYLIZER_NETWORK_MODELS_DIR = os.path.join(MODELS_DIR, 'stylizer_network')
+
+STYLIZER_NETWORK_INPUT_DIR = os.path.join(TEST_DIR, 'style_network_input')
+STYLIZER_NETWORK_OUTPUT_DIR = os.path.join(TEST_DIR, 'style_network_output')
+
 
 def make_dirs_if_not_exist(dirs):
     for dir in dirs:
