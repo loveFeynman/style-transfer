@@ -23,6 +23,29 @@ class LayerConfig:
                            self.padding,
                            self.activation,
                            self.use_batch_norm)
+    def __repr__(self):
+        return '<LayerConfig %d, %dx%d, %d stride, %s pad, %s activation, %r>' % \
+               (self.num_filters, self.filter_size, self.filter_size, self.stride, self.padding, str(self.activation), self.use_batch_norm)
+
+
+# used for configuring loss/style-image pairings
+class StyleConfig:
+    def __init__(self, style_path, style_weight, content_weight, var_weight):
+        self.style_path = style_path
+        self.style_weight = style_weight
+        self.content_weight = content_weight
+        self.total_variation_weight = var_weight
+    def __repr__(self):
+        return '<StyleConfig ' + str({
+            'style_weight': self.style_weight,
+            'content_weight': self.content_weight,
+            'var_weight': self.total_variation_weight,
+            'style_path' : self.style_path
+        }) + '>'
+
+
+
+
 
 
 def load_keras_model(dir, name, special_layers=None):
@@ -175,6 +198,21 @@ class StyleTransfer:
                                     'block3_conv1',
                                     'block4_conv1',
                                     'block5_conv1']
+    STYLE_CONFIG_DICT = {
+        'starry_night': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8),
+
+        'honeycomb_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-3, 4e4, 1e8),
+        'honeycomb_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-3, 2e5, 1e8),
+        'honeycomb_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 4e4, 1e8),
+        'honeycomb_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 2e5, 1e8),
+        'honeycomb_5': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-4, 4e5, 1e8),
+
+        'grass_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 4e4, 1e8),
+        'grass_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 2e5, 1e8),
+        'grass_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 4e-4, 4e4, 1e8),
+        'grass_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 4e-4, 2e5, 1e8),
+        'grass_5': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-4, 4e5, 1e8),
+    }
 
     @staticmethod
     def clip_0_1(image):

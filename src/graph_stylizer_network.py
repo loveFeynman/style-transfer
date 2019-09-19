@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -19,11 +20,14 @@ EPOCHS = 30 #160
 BATCH_SIZE = 4
 TOTAL_IMAGES = 1000
 
-STYLE_IMAGE_1 = os.path.join(HERE, '../res/styles/starry_night_small.jpg')
-STYLE_IMAGE_1_LARGE = os.path.join(HERE, '../res/styles/starry_night.jpg')
-CONTENT_IMAGE_1 = os.path.join(HERE, '../res/content/antelope_small.jpg')
-CONTENT_IMAGE_2 = os.path.join(HERE, '../res/content/sparrow_small.jpg')
-CONTENT_IMAGE_2_LARGE = os.path.join(HERE, '../res/content/sparrow.jpg')
+STYLE_IMAGE_1 = os.path.join(constants.STYLES_DIR, 'starry_night_small.jpg')
+STYLE_IMAGE_1_LARGE = os.path.join(constants.STYLES_DIR, 'starry_night.jpg')
+STYLE_IMAGE_2_LARGE = os.path.join(constants.STYLES_DIR, 'honeycomb_large.jpg')
+STYLE_IMAGE_2_SQUEEZE = os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg')
+
+CONTENT_IMAGE_1 = os.path.join(constants.CONTENT_DIR, 'antelope_small.jpg')
+CONTENT_IMAGE_2 = os.path.join(constants.CONTENT_DIR, 'sparrow_small.jpg')
+CONTENT_IMAGE_2_LARGE = os.path.join(constants.CONTENT_DIR, 'sparrow.jpg')
 
 model_prefix = 'STYLE_NET'
 
@@ -36,7 +40,6 @@ def build_vgg_network():
     style_layers = [StyleTransfer.gram_matrix(x) for x in style_layers]
 
     return tf.keras.Model(inputs=vgg.input, outputs=[style_layers, content_layers])
-
 
 def build_style_network():
     conv_layer_configs = [LayerConfig(32, 9, 1),
@@ -67,9 +70,17 @@ def build_style_network():
     for x in deconv_layer_configs:
         layer = model_builder.deconv_block(layer, x)
 
+    def stringify_config_list(l):
+        return [x.__repr__() for x in l]
 
-    return tf.keras.Model(inputs=network_input, outputs=layer)
+    layer_configs = {
+        'conv_layers': stringify_config_list(conv_layer_configs),
+        'residual_layers': stringify_config_list(residual_block_configs),
+        'deconv_layers': stringify_config_list(deconv_layer_configs)
+    }
 
+
+    return tf.keras.Model(inputs=network_input, outputs=layer), layer_configs
 
 def vgg_preprocess(network_input):
     if isinstance(network_input, np.ndarray):
@@ -78,18 +89,21 @@ def vgg_preprocess(network_input):
         return tf.keras.applications.vgg19.preprocess_input(tf.multiply(network_input, 225.))
 
 
-def train_style_network():
-    style_image_1 = load_image(STYLE_IMAGE_1_LARGE)
-    content_image_1 = load_image(CONTENT_IMAGE_1)
+def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1):
+    style_config = StyleTransfer.STYLE_CONFIG_DICT[style_type]
+    style_image = load_image(style_config.style_path)
+    test_content_image = load_image(test_content_image_path)
+
+    print('Building networks...')
+    with tf.name_scope('style_network'):
+        style_network, style_network_configs = build_style_network()
+    with tf.name_scope('vgg_network'):
+        vgg_network = build_vgg_network()
+    print('Done building networks.')
 
     print('Loading images...')
     dataset_manager = CocoDatasetManager(target_dim=(224, 224), num_images=TOTAL_IMAGES)
     print('Done loading images.')
-
-    with tf.name_scope('style_network'):
-        style_network = build_style_network()
-    with tf.name_scope('vgg_network'):
-        vgg_network = build_vgg_network()
 
     style_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='style_network_input')
     vgg_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='vgg_network_input')
@@ -102,9 +116,9 @@ def train_style_network():
     loss, style_loss, content_loss, total_var_loss = StyleTransfer.total_loss(style_network_output,
                                                                               style_target_placeholder, content_target_placeholder,
                                                                               style_layers, content_layers,
-                                                                              style_weight=1e-3,
-                                                                              content_weight=4e4,
-                                                                              total_variation_weight=1e8)
+                                                                              style_weight=style_config.style_weight,
+                                                                              content_weight=style_config.content_weight,
+                                                                              total_variation_weight=style_config.total_variation_weight)
     optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE) #learning_rate=0.02, beta1=.99, epsilon=1e-1)
     optimizer_op = optimizer.minimize(loss, var_list=[style_network.trainable_variables])
 
@@ -122,15 +136,18 @@ def train_style_network():
     summary_output_dir = os.path.join(constants.TENSORBOARD_DIR, model_name)
     writer = tf.summary.FileWriter(summary_output_dir)
 
+    target_dir = os.path.join(constants.MODELS_DIR, model_name)
+    os.mkdir(target_dir)
+    style_network_configs['style_config'] = style_config.__repr__()
+    with open(os.path.join(target_dir, 'config.json'), 'w+') as fl:
+        json.dump(style_network_configs, fl, indent=4)
+
     with tf.keras.backend.get_session() as session:
         session.run(tf.variables_initializer(optimizer.variables() + style_network.trainable_variables))
         writer.add_graph(session.graph)
         saver = tf.train.Saver(save_relative_paths=True)
 
-        sample_net_out = session.run(style_network_output, feed_dict={style_network_input: content_image_1})
-        print(sample_net_out.shape)
-
-        style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
+        style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image})
 
         train_start_time = time.time()
 
@@ -164,15 +181,17 @@ def train_style_network():
                     writer.add_summary(results[1], (epoch*num_training_steps) + step)
                     writer.flush()
 
-            sampled_image = session.run(style_network_output, feed_dict={style_network_input: content_image_1})
-            save_image(sampled_image, os.path.join(constants.STYLIZED_IMAGES_DIR, str(epoch) + '_style_transfer_sample_1.jpg'))
+            sampled_image = session.run(style_network_output, feed_dict={style_network_input: test_content_image})
+            save_image(sampled_image, os.path.join(target_dir, str(epoch) + '_style_transfer_sample_1.jpg'))
             epoch_end = time.time()
             elapsed = epoch_end - train_start_time
             time_digits = 6
             ETA = ((epoch_end - train_start_time) / max(1, (epoch+1))) * (EPOCHS - (epoch+1))
             print('elapsed: ' + str(elapsed/60.)[:time_digits] + ' min | remaining training time: ' + str(ETA/60.)[:time_digits] + ' min')
         print('Training concluded. Saving model...')
-        os.mkdir(os.path.join(constants.MODELS_DIR, model_name))
+
+
+
         saver.save(session, os.path.join(constants.MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         print('Model saved.')
 
@@ -435,7 +454,11 @@ if __name__=='__main__':
         if os.path.exists(src):
             run_on_image(src, dest)
     else:
-        train_style_network()
+        style_names = [x for x in list(StyleTransfer.STYLE_CONFIG_DICT.keys()) if 'honeycomb' in x or 'grass' in x]
+        print(style_names)
+        for name in style_names:
+            train_style_network(name)
+        # train_style_network('honeycomb_1')
         # normal_style_transfer()
-        run_on_image(CONTENT_IMAGE_2_LARGE, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
+        # run_on_image(CONTENT_IMAGE_2_LARGE, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
 

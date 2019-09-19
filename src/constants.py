@@ -8,6 +8,7 @@ TRAINING_IMAGES_DIR = os.path.join(HERE, '../res/training_images')
 MODELS_DIR = os.path.join(HERE, '../models')
 TEST_DIR = os.path.join(HERE, '../res/test')
 STYLES_DIR = os.path.join(HERE, '../res/styles')
+CONTENT_DIR = os.path.join(HERE, '../res/content')
 
 VAE_KERAS_GENERATED_SAMPLES_DIR = os.path.join(TEST_DIR, 'keras_generated_samples')
 
@@ -17,7 +18,6 @@ STYLE_TRANSFER_IMAGES_DIR = os.path.join(TEST_DIR, 'style_transfer')
 
 VAE_KERAS_GENERATED_TRAINING_IMAGES_DIR = os.path.join(TRAINING_IMAGES_DIR, 'vae_keras_generated')
 
-STYLIZER_NETWORK_MODELS_DIR = os.path.join(MODELS_DIR, 'stylizer_network')
 
 STYLIZER_NETWORK_INPUT_DIR = os.path.join(TEST_DIR, 'style_network_input')
 STYLIZER_NETWORK_OUTPUT_DIR = os.path.join(TEST_DIR, 'style_network_output')
