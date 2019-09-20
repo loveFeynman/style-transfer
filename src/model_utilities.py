@@ -193,25 +193,33 @@ class StyleTransfer:
     #                                 'block5_conv4']
     # VGG_CONTENT_TARGET_LAYER_NAMES = ['block5_conv4']
     VGG_CONTENT_TARGET_LAYER_NAMES = ['block5_conv2']
-    VGG_STYLE_TARGET_LAYER_NAMES = ['block1_conv1',
+    VGG_STYLE_TARGET_LAYER_NAMES = [
+        # 'block1_conv1',
                                     'block2_conv1',
                                     'block3_conv1',
                                     'block4_conv1',
-                                    'block5_conv1']
+                                    # 'block5_conv1'
+                                    ]
     STYLE_CONFIG_DICT = {
-        'starry_night': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8),
+        'starry_night': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8), #worked pretty well, maybe a little too strong
+        'starry_night_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8), #too much style
+        'starry_night_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 2e4, 1e8), #too much style
+        'starry_night_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 1e4, 1e8), #too much style
+        'starry_night_5': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 2e4, 1e8), #too much style
 
-        'honeycomb_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-3, 4e4, 1e8),
-        'honeycomb_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-3, 2e5, 1e8),
-        'honeycomb_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 4e4, 1e8),
-        'honeycomb_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 2e5, 1e8),
-        'honeycomb_5': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-4, 4e5, 1e8),
+        # 'honeycomb': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
+        # 'honeycomb_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 4e4, 1e8), #too little content
+        #  'honeycomb_3_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 8e4, 1e8), #too little content
+         'honeycomb_3_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 1e5, 1e8), #too little content
+        # 'honeycomb_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 2e5, 1e8), #too much content
 
-        'grass_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 4e4, 1e8),
-        'grass_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 2e5, 1e8),
-        'grass_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 4e-4, 4e4, 1e8),
-        'grass_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 4e-4, 2e5, 1e8),
-        'grass_5': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-4, 4e5, 1e8),
+        # 'grass_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 4e4, 1e8), #worked pretty well, maybe a little too strong
+        # 'grass_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 2e5, 1e8),
+
+        'heiro': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e8), #kinda noisy
+        'heiro_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e9),
+        'heiro_alt': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'), 1e-2, 1e4, 1e8),
+
     }
 
     @staticmethod

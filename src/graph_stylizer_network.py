@@ -28,6 +28,7 @@ STYLE_IMAGE_2_SQUEEZE = os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jp
 CONTENT_IMAGE_1 = os.path.join(constants.CONTENT_DIR, 'antelope_small.jpg')
 CONTENT_IMAGE_2 = os.path.join(constants.CONTENT_DIR, 'sparrow_small.jpg')
 CONTENT_IMAGE_2_LARGE = os.path.join(constants.CONTENT_DIR, 'sparrow.jpg')
+CONTENT_IMAGE_3 = os.path.join(constants.CONTENT_DIR, 'museum.jpg')
 
 model_prefix = 'STYLE_NET'
 
@@ -196,15 +197,13 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1):
         print('Model saved.')
 
 
-def normal_style_transfer():
+def normal_style_transfer(style_type):
+    style_config = StyleTransfer.STYLE_CONFIG_DICT[style_type]
 
-    style_image_1 = load_image(STYLE_IMAGE_1)
+    style_image_1 = load_image(style_config.style_path)
     content_image_1 = load_image(CONTENT_IMAGE_1)
 
-    var_init = content_image_1 #np.random.random_sample(content_image_1.shape).astype(np.float32)
-
-    # style_image_1 = vgg_preprocess(style_image_1)
-    # content_image_1 = vgg_preprocess(content_image_1)
+    var_init = content_image_1
 
     with tf.name_scope('vgg_network'):
         vgg_network = build_vgg_network()
@@ -223,7 +222,9 @@ def normal_style_transfer():
     loss, style_loss, content_loss, total_var_loss = StyleTransfer.total_loss(train_target,
                                                                               style_target_placeholder, content_target_placeholder,
                                                                               style_layers, content_layers,
-                                                                              total_variation_weight=1e8)
+                                                                              style_weight=style_config.style_weight,
+                                                                              content_weight=style_config.content_weight,
+                                                                              total_variation_weight=style_config.total_variation_weight)
     optimizer = tf.train.AdamOptimizer(learning_rate=0.02, beta1=.99, epsilon=1e-1)
     optimizer_op = optimizer.minimize(loss, var_list=[train_target])
 
@@ -245,17 +246,12 @@ def normal_style_transfer():
     writer = tf.summary.FileWriter(summary_output_dir)
 
     with tf.keras.backend.get_session() as session:
-        # session.run(tf.global_variables_initializer())
-        # session.run(tf.initialize_variables([optimizer.variables()]))
         session.run(tf.variables_initializer(optimizer.variables() + [train_target]))
         writer.add_graph(session.graph)
         saver = tf.train.Saver()
 
         style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
         content_targets_sample = session.run(content_targets, feed_dict={vgg_network_input: content_image_1})
-
-        #print(style_targets_sample[0])
-
 
         train_start_time = time.time()
 
@@ -294,110 +290,6 @@ def normal_style_transfer():
         saver.save(session, os.path.join(constants.MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         print('Model saved.')
 
-
-def normal_style_transfer2():
-
-    style_image_1 = load_image(STYLE_IMAGE_1)
-    content_image_1 = load_image(CONTENT_IMAGE_1)
-
-    # var_init = np.random.random_sample(content_image_1.shape).astype(np.float32)
-    var_init = content_image_1
-
-    style_image_1 = vgg_preprocess(style_image_1)
-    content_image_1 = vgg_preprocess(content_image_1)
-
-    with tf.name_scope('vgg_network'):
-        vgg_network = build_vgg_network()
-
-    vgg_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='vgg_network_input')
-
-    [style_targets, content_targets] = vgg_network(vgg_network_input)
-
-    train_target = tf.Variable(var_init, name='train_target')
-
-    [style_layers, content_layers] = vgg_network(vgg_preprocess(train_target))
-
-    style_target_placeholder = [tf.placeholder(tf.float32, shape=[None, None, None], name='style_target_placeholder_' + str(x)) for x in range(len(style_layers))]
-    content_target_placeholder = [tf.placeholder(tf.float32, shape=[None, None, None, None], name='content_target_placeholder')]
-
-    loss, style_loss, content_loss, total_var_loss = StyleTransfer.total_loss(train_target, style_target_placeholder, content_target_placeholder, style_layers, content_layers)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.02, beta1=.99, epsilon=1e-1)
-    optimizer_op = optimizer.minimize(loss, var_list=[train_target])
-
-    optimizer_get_gradients = optimizer.compute_gradients(loss, var_list=[train_target])
-    optimizer_apply_gradients = optimizer.apply_gradients(optimizer_get_gradients)
-
-
-    clipped_image = StyleTransfer.clip_0_1(train_target)
-
-    training_summaries = []
-    with tf.name_scope('Images'):
-        training_summaries.append(tf.summary.image('Output Image', train_target, max_outputs=1))
-    with tf.name_scope('Losses'):
-        training_summaries.append(tf.summary.scalar('Total Loss', loss))
-        training_summaries.append(tf.summary.scalar('Style Loss', style_loss))
-        training_summaries.append(tf.summary.scalar('Content Loss', content_loss))
-        training_summaries.append(tf.summary.scalar('Total Variation Loss', total_var_loss))
-    merged_summaries = tf.summary.merge(training_summaries)
-    model_name = time.strftime("STYLE_%Y-%m-%d-%H-%M")
-    summary_output_dir = os.path.join(constants.TENSORBOARD_DIR, model_name)
-    writer = tf.summary.FileWriter(summary_output_dir)
-
-    with tf.keras.backend.get_session() as session:
-        # session.run(tf.global_variables_initializer())
-        # session.run(tf.initialize_variables([optimizer.variables()]))
-        session.run(tf.variables_initializer(optimizer.variables() + [train_target]))
-        writer.add_graph(session.graph)
-        saver = tf.train.Saver()
-
-        style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
-        content_targets_sample = session.run(content_targets, feed_dict={vgg_network_input: content_image_1})
-
-        # print(style_targets_sample[0])
-
-
-        train_start_time = time.time()
-
-        for epoch in range(EPOCHS):
-            print('Epoch ' + str(epoch + 1) + ' of ' + str(EPOCHS))
-            num_training_steps = 100
-
-            for step in range(num_training_steps):
-
-                optimizer_dict = {content_target_placeholder[0]: content_targets_sample[0]}
-                for x in range(len(style_targets_sample)):
-                    optimizer_dict[style_target_placeholder[x]] = style_targets_sample[x]
-
-                run_summaries = step % int(num_training_steps / 10) == 0
-                # ops = [optimizer_op]
-                ops = [optimizer_apply_gradients]
-                if run_summaries:
-                    ops.append(merged_summaries)
-                results = session.run(ops, feed_dict=optimizer_dict)
-
-
-
-                clipped = session.run(clipped_image)
-                train_target.assign(clipped)
-
-                if run_summaries:
-                    writer.add_summary(results[1], (epoch * num_training_steps) + step)
-                    writer.flush()
-
-            sampled_image = session.run(train_target, feed_dict={})
-            # print(sampled_image)
-            save_image(sampled_image, os.path.join(constants.STYLIZED_IMAGES_DIR, str(epoch) + '_style_transfer_sample_1.jpg'))
-            epoch_end = time.time()
-            elapsed = epoch_end - train_start_time
-            time_digits = 6
-            ETA = ((epoch_end - train_start_time) / max(1, (epoch + 1))) * (EPOCHS - (epoch + 1))
-            print('elapsed: ' + str(elapsed / 60.)[:time_digits] + ' min | remaining training time: ' + str(ETA / 60.)[:time_digits] + ' min')
-        print('Training concluded. Saving model...')
-        os.mkdir(os.path.join(constants.MODELS_DIR, model_name))
-        saver.save(session, os.path.join(constants.MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
-        print('Model saved.')
-
-
 class StyleNetService(threading.Thread):
     def __init__(self, model_name):
         # tf.logging.set_verbosity(tf.logging.ERROR)
@@ -435,10 +327,14 @@ class StyleNetService(threading.Thread):
             time.sleep(increment)
 
 
-def run_on_image(source_image_path, destination_path):
+def run_on_image(source_image_path, destination_path, model_path=None):
     target_image = load_image(source_image_path)
 
-    service = StyleNetService(model_utilities.get_most_recent_model_name(constants.MODELS_DIR, model_prefix))
+    real_model_path = model_path
+    if real_model_path == None:
+        real_model_path = model_utilities.get_most_recent_model_name(constants.MODELS_DIR, model_prefix)
+
+    service = StyleNetService(real_model_path)
     service.start()
     service.wait_for_ready()
 
@@ -453,12 +349,16 @@ if __name__=='__main__':
         dest = sys.argv[2]
         if os.path.exists(src):
             run_on_image(src, dest)
+    if len(sys.argv) == 4:
+        model = sys.argv[1]
+        src = sys.argv[2]
+        dest = sys.argv[3]
+        model_dir = os.path.join(constants.MODELS_DIR, model)
+        if os.path.exists(src) and os.path.exists(model_dir) and os.path.isdir(model_dir):
+            run_on_image(src, dest, model_path=model)
     else:
-        style_names = [x for x in list(StyleTransfer.STYLE_CONFIG_DICT.keys()) if 'honeycomb' in x or 'grass' in x]
-        print(style_names)
-        for name in style_names:
-            train_style_network(name)
-        # train_style_network('honeycomb_1')
-        # normal_style_transfer()
+        train_style_network('starry_night_5')
+        # normal_style_transfer('starry_night')
+        # normal_style_transfer('heiro_alt')
         # run_on_image(CONTENT_IMAGE_2_LARGE, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
 
