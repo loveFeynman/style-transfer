@@ -1,6 +1,7 @@
 import os
 from typing import List, Tuple
 import tensorflow as tf
+from tensorflow.python.keras.engine import Layer
 from tensorflow.python.keras.saving import load_model
 
 import constants
@@ -8,13 +9,14 @@ from image_utilities import sort_numerical
 
 
 class LayerConfig:
-    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=True):
+    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=False, use_instance_norm=True):
         self.num_filters = num_filters
         self.filter_size = filter_size
         self.stride = stride
         self.padding = padding
         self.activation = activation
         self.use_batch_norm = use_batch_norm
+        self.use_instance_norm = use_instance_norm
 
     def copy(self):
         return LayerConfig(self.num_filters,
@@ -22,10 +24,11 @@ class LayerConfig:
                            self.stride,
                            self.padding,
                            self.activation,
-                           self.use_batch_norm)
+                           self.use_batch_norm,
+                           self.use_instance_norm)
     def __repr__(self):
-        return '<LayerConfig %d, %dx%d, %d stride, %s pad, %s activation, %r>' % \
-               (self.num_filters, self.filter_size, self.filter_size, self.stride, self.padding, str(self.activation), self.use_batch_norm)
+        return '<LayerConfig %d, %dx%d, %d stride, %s pad, %s activation, %r bn, %r in>' % \
+               (self.num_filters, self.filter_size, self.filter_size, self.stride, self.padding, str(self.activation), self.use_batch_norm, self.use_instance_norm)
 
 
 # used for configuring loss/style-image pairings
@@ -42,10 +45,6 @@ class StyleConfig:
             'var_weight': self.total_variation_weight,
             'style_path' : self.style_path
         }) + '>'
-
-
-
-
 
 
 def load_keras_model(dir, name, special_layers=None):
@@ -116,76 +115,127 @@ class ModelBuilder:
     def residual_block(layer_input, config: LayerConfig):
         return
 
+    @staticmethod
+    def instance_norm(layer_input):
+        # mean, var = tf.nn.moments(layer_input, [1, 2], keep_dims=True)
+        # return tf.div(tf.subtract(layer_input, mean), tf.sqrt(tf.add(var, 1e-9)))
+        # return tf.contrib.layers.instance_norm(layer_input, scope='style_network', reuse=tf.AUTO_REUSE)
+
+        # batch, rows, cols, channels = [i.value for i in layer_input.get_shape()]
+        # var_shape = [channels]
+        # mu, sigma_sq = tf.nn.moments(layer_input, [1, 2], keep_dims=True)
+        # shift = tf.Variable(tf.zeros(var_shape))
+        # scale = tf.Variable(tf.ones(var_shape))
+        # epsilon = 1e-3
+        # normalized = (layer_input - mu) / (sigma_sq + epsilon) ** (.5)
+        # return scale * normalized + shift
+
+        return tf.contrib.layers.instance_norm(layer_input) #, center=False, scale=False)
+
 
 class GraphModelBuilder(ModelBuilder):
     @staticmethod
     def conv_block(layer_input, config: LayerConfig):
-        conv_layer = tf.layers.conv2d(layer_input, config.num_filters, config.filter_size, config.stride, config.padding)
-        if config.use_batch_norm:
-            conv_layer = tf.layers.batch_normalization(conv_layer)
+        conv_layer = tf.layers.conv2d(layer_input, config.num_filters, config.filter_size, config.stride, config.padding, kernel_initializer=tf.zeros_initializer())
         if config.activation is not None:
             conv_layer = config.activation(conv_layer)
+        if config.use_instance_norm:
+            conv_layer = ModelBuilder.instance_norm(conv_layer)
+        if config.use_batch_norm and not config.use_instance_norm:
+            conv_layer = tf.layers.batch_normalization(conv_layer)
         return conv_layer
     @staticmethod
     def deconv_block(layer_input, config: LayerConfig):
-        deconv_layer = tf.layers.conv2d_transpose(layer_input, config.num_filters, config.filter_size, config.stride, config.padding)
-        if config.use_batch_norm:
-            deconv_layer = tf.layers.batch_normalization(deconv_layer)
+        deconv_layer = tf.layers.conv2d_transpose(layer_input, config.num_filters, config.filter_size, config.stride, config.padding, kernel_initializer=tf.zeros_initializer())
         if config.activation is not None:
             deconv_layer = config.activation(deconv_layer)
+        if config.use_instance_norm:
+            deconv_layer = ModelBuilder.instance_norm(deconv_layer)
+        if config.use_batch_norm and not config.use_instance_norm:
+            deconv_layer = tf.layers.batch_normalization(deconv_layer)
         return deconv_layer
     @staticmethod
     def residual_block(layer_input, config: LayerConfig):
         conv_config = config.copy()
         conv_config.use_batch_norm = False
+        conv_config.use_instance_norm = False
         conv_config.activation = None
         residual_layer = GraphModelBuilder.conv_block(layer_input, config)
         residual_layer = GraphModelBuilder.conv_block(residual_layer, conv_config)
         residual_layer = layer_input + residual_layer
-        if config.use_batch_norm:
-            residual_layer = tf.layers.batch_normalization(residual_layer)
         if config.activation is not None:
             residual_layer = config.activation(residual_layer)
+        if config.use_instance_norm:
+            residual_layer = ModelBuilder.instance_norm(residual_layer)
+        if config.use_batch_norm and not config.use_instance_norm:
+            residual_layer = tf.layers.batch_normalization(residual_layer)
+
         return residual_layer
+
+
+class InstanceNormLayer(Layer):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    def call(self, x):
+        return ModelBuilder.instance_norm(x)
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.output_dim)
+
+    def get_config(self):
+        base_config = super().get_config()
+        return base_config
 
 
 class EagerModelBuilder(ModelBuilder):
     @staticmethod
     def conv_block(layer_input, config: LayerConfig):
         conv_layer = tf.keras.layers.Conv2D(config.num_filters, config.filter_size, config.stride, padding=config.padding)(layer_input)
-        if config.use_batch_norm:
+        if config.activation is not None:
+            conv_layer = tf.keras.layers.Activation(config.activation)(conv_layer)
+        if config.use_instance_norm:
+            conv_layer = InstanceNormLayer()(conv_layer)
+        if config.use_batch_norm and not config.use_instance_norm:
             conv_layer = tf.keras.layers.BatchNormalization()(conv_layer)
-        conv_layer = tf.keras.layers.Activation(config.activation)(conv_layer)
+
         return conv_layer
 
     @staticmethod
     def deconv_block(layer_input, config: LayerConfig):
         deconv_layer = tf.keras.layers.Conv2DTranspose(config.num_filters, config.filter_size, config.stride, padding=config.padding)(layer_input)
-        if config.use_batch_norm:
+        if config.activation is not None:
+            deconv_layer = tf.keras.layers.Activation(config.activation)(deconv_layer)
+        if config.use_instance_norm:
+            deconv_layer = InstanceNormLayer()(deconv_layer)
+        if config.use_batch_norm and not config.use_instance_norm:
             deconv_layer = tf.keras.layers.BatchNormalization()(deconv_layer)
-        deconv_layer = tf.keras.layers.Activation(config.activation)(deconv_layer)
+
         return deconv_layer
 
     @staticmethod
     def residual_block(layer_input, config: LayerConfig):
         conv_config = config.copy()
         conv_config.use_batch_norm = False
+        conv_config.use_instance_norm = False
         conv_config.activation = None
 
         residual_layer = EagerModelBuilder.conv_block(layer_input, config)
         residual_layer = EagerModelBuilder.conv_block(residual_layer, conv_config)
         residual_layer = tf.keras.layers.Add()([layer_input, residual_layer])
-        if config.use_batch_norm:
-            residual_layer = tf.keras.layers.BatchNormalization()(residual_layer)
-        if config.activation != None:
+        if config.activation is not None:
             residual_layer = tf.keras.layers.Activation(config.activation)(residual_layer)
+        if config.use_instance_norm:
+            residual_layer = InstanceNormLayer()(residual_layer)
+        if config.use_batch_norm and not config.use_instance_norm:
+            residual_layer = tf.keras.layers.BatchNormalization()(residual_layer)
+
         return residual_layer
 
 
 class StyleTransfer:
     STYLE_WEIGHT = 1e-2
     TOTAL_VARIATION_WEIGHT = 1e-4#use 1e8 for normal style transfer
-    CONTENT_WEIGHT = 1e4
+    CONTENT_WEIGHT = 1e8
     # VGG_STYLE_TARGET_LAYER_NAMES = ['block1_conv2',
     #                                 'block2_conv2',
     #                                 'block3_conv4',
@@ -194,18 +244,18 @@ class StyleTransfer:
     # VGG_CONTENT_TARGET_LAYER_NAMES = ['block5_conv4']
     VGG_CONTENT_TARGET_LAYER_NAMES = ['block5_conv2']
     VGG_STYLE_TARGET_LAYER_NAMES = [
-        # 'block1_conv1',
+                                    'block1_conv1',
                                     'block2_conv1',
                                     'block3_conv1',
                                     'block4_conv1',
-                                    # 'block5_conv1'
+                                    'block5_conv1'
                                     ]
     STYLE_CONFIG_DICT = {
-        'starry_night': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8), #worked pretty well, maybe a little too strong
-        'starry_night_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8), #too much style
-        'starry_night_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 2e4, 1e8), #too much style
-        'starry_night_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 1e4, 1e8), #too much style
-        'starry_night_5': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 2e4, 1e8), #too much style
+        'starry_night_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8),  # too much style
+
+        'starry_night_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1, 0, 0), #too much style
+        'starry_night_content': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 0, 1, 0), #too much style
+        'starry_night_net': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8),  # worked pretty well, maybe a little too strong
 
         # 'honeycomb': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
         # 'honeycomb_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 4e4, 1e8), #too little content
@@ -217,7 +267,8 @@ class StyleTransfer:
         # 'grass_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 2e5, 1e8),
 
         'heiro': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e8), #kinda noisy
-        'heiro_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e9),
+        'heiro_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-3, 4e4, 1e8),
+        'heiro_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e0, 1e4, 1e8), #see if we can get a lotta style out of one
         'heiro_alt': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'), 1e-2, 1e4, 1e8),
 
     }

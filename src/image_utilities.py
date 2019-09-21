@@ -8,10 +8,13 @@ import imageio
 from typing import overload
 import constants
 
-STYLES_DIR = '../res/styles'
-TEST_DIR = '../res/test'
 
-COCO_DATASET = '../../../res/coco/train2014/train2014/'
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+
+COCO_DATASET = os.path.join(HERE, '../../../res/coco/train2014/train2014/')
+COCO_DATASET_CLIPPED = os.path.join(HERE, '../../../res/coco_clipped')
 
 DEBUG_MODE = False
 
@@ -20,7 +23,7 @@ class ImageGenerator:
     def __init__(self, styles = ('starry_night','honeycomb')):
         self.styles = []
         for style in styles:
-            img = open_image(join(STYLES_DIR,style + '.jpg'))
+            img = open_image(join(constants.STYLES_DIR,style + '.jpg'))
             self.styles.append(img)
         print('ImageGenerator loaded  ' + str(len(self.styles)) + ' styles')
         self.images = {}
@@ -109,8 +112,44 @@ class DatasetManager:
         return self.images
 
 class CocoDatasetManager(DatasetManager):
-    def __init__(self, target_dim = (224, 224), num_images = None):
+    def __init__(self, target_dim = (256, 256), num_images = None):
         super().__init__(COCO_DATASET, target_dim = target_dim, num_images = num_images)
+
+
+class PreprocessedCocoDatasetManager:
+    def __init__(self, target_dim=(256, 256), num_images=None):
+        self.images = []
+        self.target_dim = target_dim
+        debug('Beginning image load')
+        self.load_images(COCO_DATASET_CLIPPED, num_images)
+
+    def load_images(self, directory, num_images=None):
+        start = time.time()
+        files = os.listdir(directory)
+
+
+        for file in files:
+            if len(self.images) > num_images:
+                continue
+            if '.jpg' not in file:
+                continue
+            path = os.path.join(directory, file)
+            img = cv2.imread(path)
+            img = pixel_to_decimal(flip_BR(img))
+            self.images.append(img)
+
+
+    def shuffle_loaded_images(self):
+        for x in range(len(self.images)):
+            random_indexes = np.random.randint(len(self.images), size=2)
+            hold = self.images[random_indexes[0]]
+            self.images[random_indexes[0]] = self.images[random_indexes[1]]
+            self.images[random_indexes[1]] = hold
+
+    def get_images(self):
+        return self.images
+
+
 
 
 def clip_image_to_dims(image, width, height, start_x = 0, start_y = 0):
@@ -230,8 +269,34 @@ def sort_numerical(items):
     return items
 
 
+def clip_COCO_to_dims(num_images=2000, start=0, target_dim=(256,256)):
+    directory = COCO_DATASET
+    files = os.listdir(directory)
+
+    if len(files) > start+num_images:
+        files = files[start:start+num_images]
+
+
+    count = 0
+    for file in files:
+        if '.jpg' not in file:
+            continue
+        path = os.path.join(directory, file)
+        out_path = os.path.join(COCO_DATASET_CLIPPED, file)
+
+        img = cv2.imread(path)
+        if can_clip_image_to_dims(img, dim=target_dim):
+            img = random_clip_image_to_dim(img, dim=target_dim)
+            cv2.imwrite(out_path, img)
+        print(count)
+        count += 1
+
+
 
 if __name__ == '__main__':
     #test()
-    generate_gif_from_images_in_dir(os.path.join(constants.STYLE_TRANSFER_IMAGES_DIR, 'starry_night'))
-    generate_gif_from_images_in_dir(os.path.join(constants.STYLE_TRANSFER_IMAGES_DIR, 'honeycomb'))
+    # generate_gif_from_images_in_dir(os.path.join(constants.STYLE_TRANSFER_IMAGES_DIR, 'starry_night'))
+    # generate_gif_from_images_in_dir(os.path.join(constants.STYLE_TRANSFER_IMAGES_DIR, 'honeycomb'))
+    clip_COCO_to_dims(start=11000, num_images=5000)
+    # pass
+

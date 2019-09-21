@@ -12,7 +12,7 @@ from tensorflow.python.keras.layers import Conv2D, MaxPooling2D, Dropout
 from tensorflow.python.keras.saving import load_model
 
 import model_utilities
-from image_utilities import flip_BR, pixel_to_decimal, save_image, CocoDatasetManager, open_image, image_3d_to_4d, load_image
+from image_utilities import flip_BR, pixel_to_decimal, save_image, CocoDatasetManager, open_image, image_3d_to_4d, load_image, PreprocessedCocoDatasetManager
 
 # using code from (https://www.tensorflow.org/beta/tutorials/generative/style_transfer) at points
 
@@ -23,10 +23,9 @@ TEST_IMG = os.path.join(TEST_DIR, 'vgg_test_1.jpg')
 LOGGER_PATH = '../res/test/log.txt'
 
 #style_image_1 = '../res/styles/honeycomb_small.jpg'
-style_image_1 = '../res/styles/starry_night_small.jpg'
-content_image_1 = '../res/content/antelope_small.jpg'
-content_image_2 = '../res/content/sparrow_small.jpg'
-content_image_3 = '../res/content/logo_small.jpg'
+style_image_1 = os.path.join(STYLES_DIR, 'starry_night.jpg')
+content_image_1 = os.path.join(CONTENT_DIR, 'antelope_small.jpg')
+content_image_2 = os.path.join(CONTENT_DIR, 'sparrow_small.jpg')
 
 
 output_path = STYLIZED_IMAGES_DIR
@@ -35,7 +34,7 @@ model_prefix = 'STYLIZER'
 
 style_weight = 1e-2
 content_weight = 1e4
-total_variation_weight = 1e-5 # 1e8
+total_variation_weight = 1e8 # 1e8
 
 learning_rate = 0.001
 
@@ -472,7 +471,7 @@ def residual_blocks_3():
         layer = model_builder.deconv_block(layer, x)
 
     layer = tf.identity(layer, name='network_output')
-    return network_input, layer
+    return tf.keras.Model(inputs=network_input, outputs=layer)
 
 def train_stylizer():
     stylizer_network = style_net()
@@ -513,10 +512,9 @@ def train_stylizer():
     save_keras_model(stylizer_network, MODELS_DIR, model_name)
 
 def train_stylizer_on_dataset():
-    stylizer_network = residual_blocks_2()
+    stylizer_network = residual_blocks_3()
     style_image = load_image(style_image_1)
     content_im_1 = load_image(content_image_1)
-    content_im_3 = load_image(content_image_3)
     content_layers = ['block5_conv2']
     style_layers = ['block1_conv1',
                     'block2_conv1',
@@ -524,7 +522,7 @@ def train_stylizer_on_dataset():
                     'block4_conv1',
                     'block5_conv1']
     extractor = StyleContentModel(style_layers, content_layers)
-    opt = tf.keras.optimizers.Adam(lr=learning_rate, beta_1=.99, epsilon=1e-1)
+    opt = tf.keras.optimizers.Adam(lr=learning_rate) #, beta_1=.99, epsilon=1e-1)
     style_targets = extractor(style_image)['style']
 
     def train_step(input_image):
@@ -541,7 +539,7 @@ def train_stylizer_on_dataset():
         return loss
 
     print('Loading images...')
-    dataset_manager = CocoDatasetManager(target_dim=(224,224), num_images = 1000)
+    dataset_manager = PreprocessedCocoDatasetManager(num_images = 1000)
     images = dataset_manager.get_images()
     print('Done loading images.')
 

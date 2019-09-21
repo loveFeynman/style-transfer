@@ -12,13 +12,13 @@ import numpy as np
 
 import constants
 import model_utilities
-from image_utilities import load_image, CocoDatasetManager, save_image
+from image_utilities import load_image, CocoDatasetManager, save_image, PreprocessedCocoDatasetManager
 from model_utilities import LayerConfig, StyleTransfer
 
 LEARNING_RATE = 1e-3
 EPOCHS = 30 #160
 BATCH_SIZE = 4
-TOTAL_IMAGES = 1000
+TOTAL_IMAGES = 500 #2000
 
 STYLE_IMAGE_1 = os.path.join(constants.STYLES_DIR, 'starry_night_small.jpg')
 STYLE_IMAGE_1_LARGE = os.path.join(constants.STYLES_DIR, 'starry_night.jpg')
@@ -103,7 +103,7 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1):
     print('Done building networks.')
 
     print('Loading images...')
-    dataset_manager = CocoDatasetManager(target_dim=(224, 224), num_images=TOTAL_IMAGES)
+    dataset_manager = PreprocessedCocoDatasetManager(target_dim=(256, 256), num_images=TOTAL_IMAGES)
     print('Done loading images.')
 
     style_network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='style_network_input')
@@ -121,7 +121,28 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1):
                                                                               content_weight=style_config.content_weight,
                                                                               total_variation_weight=style_config.total_variation_weight)
     optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE) #learning_rate=0.02, beta1=.99, epsilon=1e-1)
-    optimizer_op = optimizer.minimize(loss, var_list=[style_network.trainable_variables])
+
+
+
+    vars_to_train = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='style_network')
+
+
+
+    optimizer_op = optimizer.minimize(loss, var_list=vars_to_train)#var_list=[style_network.trainable_variables])
+    all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+    vars_to_init = []
+    for var in all_vars:
+        if 'vgg_network' in var.name:
+            continue
+        else:
+            vars_to_init.append(var)
+        # in_tvars = False
+        # for tvar in vars_to_init:
+        #     if var.name == tvar.name:
+        #         in_tvars = True
+        # if not in_tvars:
+        #     vars_to_init.append(var)
+
 
     training_summaries = []
     with tf.name_scope('Images'):
@@ -140,11 +161,17 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1):
     target_dir = os.path.join(constants.MODELS_DIR, model_name)
     os.mkdir(target_dir)
     style_network_configs['style_config'] = style_config.__repr__()
+    style_network_configs['style_layers'] = StyleTransfer.VGG_STYLE_TARGET_LAYER_NAMES
+    style_network_configs['content_layers'] = StyleTransfer.VGG_CONTENT_TARGET_LAYER_NAMES
+    style_network_configs['batch_size'] = BATCH_SIZE
+    style_network_configs['data_size'] = TOTAL_IMAGES
+    style_network_configs['LR'] = LEARNING_RATE
+
     with open(os.path.join(target_dir, 'config.json'), 'w+') as fl:
         json.dump(style_network_configs, fl, indent=4)
 
     with tf.keras.backend.get_session() as session:
-        session.run(tf.variables_initializer(optimizer.variables() + style_network.trainable_variables))
+        session.run(tf.variables_initializer(vars_to_init))
         writer.add_graph(session.graph)
         saver = tf.train.Saver(save_relative_paths=True)
 
@@ -190,8 +217,6 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1):
             ETA = ((epoch_end - train_start_time) / max(1, (epoch+1))) * (EPOCHS - (epoch+1))
             print('elapsed: ' + str(elapsed/60.)[:time_digits] + ' min | remaining training time: ' + str(ETA/60.)[:time_digits] + ' min')
         print('Training concluded. Saving model...')
-
-
 
         saver.save(session, os.path.join(constants.MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         print('Model saved.')
@@ -252,7 +277,6 @@ def normal_style_transfer(style_type):
 
         style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
         content_targets_sample = session.run(content_targets, feed_dict={vgg_network_input: content_image_1})
-
         train_start_time = time.time()
 
         for epoch in range(EPOCHS):
@@ -290,6 +314,7 @@ def normal_style_transfer(style_type):
         saver.save(session, os.path.join(constants.MODELS_DIR, model_name, 'saved_' + model_name), global_step=0)
         print('Model saved.')
 
+
 class StyleNetService(threading.Thread):
     def __init__(self, model_name):
         # tf.logging.set_verbosity(tf.logging.ERROR)
@@ -307,9 +332,11 @@ class StyleNetService(threading.Thread):
         saver = tf.compat.v1.train.import_meta_graph(os.path.join(model_dir, meta_name))
         saver.restore(self.session, tf.train.latest_checkpoint(model_dir))
 
+        # vars = [x.name for x in self.session.graph.as_graph_def().node]
+        # print(vars)
 
         self.network_input = self.session.graph.get_tensor_by_name('style_network/input_1:0')
-        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_20/Sigmoid:0')
+        self.network_output = self.session.graph.get_tensor_by_name('style_network/activation_15/Sigmoid:0')
 
         print('StyleNetService running.')
         self.loaded = True
@@ -357,8 +384,9 @@ if __name__=='__main__':
         if os.path.exists(src) and os.path.exists(model_dir) and os.path.isdir(model_dir):
             run_on_image(src, dest, model_path=model)
     else:
-        train_style_network('starry_night_5')
+        # train_style_network('heiro_3')
         # normal_style_transfer('starry_night')
-        # normal_style_transfer('heiro_alt')
+        train_style_network('starry_night_style')
+        # normal_style_transfer('heiro')
         # run_on_image(CONTENT_IMAGE_2_LARGE, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
 
