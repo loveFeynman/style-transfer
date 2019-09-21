@@ -9,7 +9,7 @@ from image_utilities import sort_numerical
 
 
 class LayerConfig:
-    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=False, use_instance_norm=True):
+    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=True, use_instance_norm=False):
         self.num_filters = num_filters
         self.filter_size = filter_size
         self.stride = stride
@@ -130,13 +130,13 @@ class ModelBuilder:
         # normalized = (layer_input - mu) / (sigma_sq + epsilon) ** (.5)
         # return scale * normalized + shift
 
-        return tf.contrib.layers.instance_norm(layer_input) #, center=False, scale=False)
+        return tf.contrib.layers.instance_norm(layer_input) #, center=False, scale=False), scope='style_transfer'
 
 
 class GraphModelBuilder(ModelBuilder):
     @staticmethod
     def conv_block(layer_input, config: LayerConfig):
-        conv_layer = tf.layers.conv2d(layer_input, config.num_filters, config.filter_size, config.stride, config.padding, kernel_initializer=tf.zeros_initializer())
+        conv_layer = tf.layers.conv2d(layer_input, config.num_filters, config.filter_size, config.stride, config.padding) #, kernel_initializer=tf.zeros_initializer())
         if config.activation is not None:
             conv_layer = config.activation(conv_layer)
         if config.use_instance_norm:
@@ -146,7 +146,7 @@ class GraphModelBuilder(ModelBuilder):
         return conv_layer
     @staticmethod
     def deconv_block(layer_input, config: LayerConfig):
-        deconv_layer = tf.layers.conv2d_transpose(layer_input, config.num_filters, config.filter_size, config.stride, config.padding, kernel_initializer=tf.zeros_initializer())
+        deconv_layer = tf.layers.conv2d_transpose(layer_input, config.num_filters, config.filter_size, config.stride, config.padding) #, kernel_initializer=tf.zeros_initializer())
         if config.activation is not None:
             deconv_layer = config.activation(deconv_layer)
         if config.use_instance_norm:
@@ -171,6 +171,13 @@ class GraphModelBuilder(ModelBuilder):
             residual_layer = tf.layers.batch_normalization(residual_layer)
 
         return residual_layer
+
+    @staticmethod
+    def conv_layer_from_weights(layer_input, weights, bias):
+        return tf.nn.bias_add(tf.nn.conv2d(layer_input, tf.constant(weights), strides=(1,1,1,1), padding='SAME'), bias)
+    @staticmethod
+    def pool_layer(layer_input):
+        return tf.nn.max_pool2d(layer_input, ksize=(1,2,2,1), strides=(1,2,2,1), padding='SAME')
 
 
 class InstanceNormLayer(Layer):
@@ -250,8 +257,27 @@ class StyleTransfer:
                                     'block4_conv1',
                                     'block5_conv1'
                                     ]
+    VGG_CONTENT_TARGET_LAYER_NAMES_ALT = ['conv5_2']
+    VGG_STYLE_TARGET_LAYER_NAMES_ALT = [
+        'conv1_1',
+        'conv2_1',
+        'conv3_1',
+        'conv4_1',
+        'conv5_1'
+    ]
+    # VGG_CONTENT_TARGET_LAYER_NAMES_ALT = ['relu4_2']
+    # VGG_STYLE_TARGET_LAYER_NAMES_ALT = [
+    #     'relu1_1',
+    #     'relu2_1',
+    #     'relu3_1',
+    #     'relu4_1',
+    #     'relu5_1'
+    # ]
+
+
     STYLE_CONFIG_DICT = {
         'starry_night_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8),  # too much style
+        'starry_night_g_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 0),  # too much style
 
         'starry_night_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1, 0, 0), #too much style
         'starry_night_content': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 0, 1, 0), #too much style
