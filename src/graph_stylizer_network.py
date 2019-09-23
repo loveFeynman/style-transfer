@@ -385,8 +385,8 @@ if __name__=='__main__':
             run_on_image(src, dest, model_path=model)
     else:
         # train_style_network('heiro_3')
-        normal_style_transfer('starry_night_transfer')
-        # train_style_network('starry_night_style')
+        # normal_style_transfer('starry_night_transfer')
+        train_style_network('starry_night_style')
         # normal_style_transfer('heiro')
         # run_on_image(CONTENT_IMAGE_2_LARGE, os.path.join(constants.TEST_DIR, 'stylized_test.jpg'))
 

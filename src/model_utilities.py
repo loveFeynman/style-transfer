@@ -9,7 +9,7 @@ from image_utilities import sort_numerical
 
 
 class LayerConfig:
-    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=True, use_instance_norm=False):
+    def __init__(self, num_filters, filter_size, stride, padding='same', activation=tf.nn.relu, use_batch_norm=False, use_instance_norm=True):
         self.num_filters = num_filters
         self.filter_size = filter_size
         self.stride = stride
@@ -117,20 +117,7 @@ class ModelBuilder:
 
     @staticmethod
     def instance_norm(layer_input):
-        # mean, var = tf.nn.moments(layer_input, [1, 2], keep_dims=True)
-        # return tf.div(tf.subtract(layer_input, mean), tf.sqrt(tf.add(var, 1e-9)))
-        # return tf.contrib.layers.instance_norm(layer_input, scope='style_network', reuse=tf.AUTO_REUSE)
-
-        # batch, rows, cols, channels = [i.value for i in layer_input.get_shape()]
-        # var_shape = [channels]
-        # mu, sigma_sq = tf.nn.moments(layer_input, [1, 2], keep_dims=True)
-        # shift = tf.Variable(tf.zeros(var_shape))
-        # scale = tf.Variable(tf.ones(var_shape))
-        # epsilon = 1e-3
-        # normalized = (layer_input - mu) / (sigma_sq + epsilon) ** (.5)
-        # return scale * normalized + shift
-
-        return tf.contrib.layers.instance_norm(layer_input) #, center=False, scale=False), scope='style_transfer'
+        return tf.contrib.layers.instance_norm(layer_input)
 
 
 class GraphModelBuilder(ModelBuilder):
@@ -239,6 +226,68 @@ class EagerModelBuilder(ModelBuilder):
         return residual_layer
 
 
+class NNGraphModelBuilder(ModelBuilder):
+    @staticmethod
+    def var_init(shape):
+        return tf.Variable(tf.truncated_normal(shape, stddev=.1, seed=1), dtype=tf.float32)
+
+    @staticmethod
+    def conv_block(layer_input, config: LayerConfig):
+        weights = NNGraphModelBuilder.var_init([config.filter_size, config.filter_size, layer_input.get_shape()[3].value, config.num_filters])
+        conv_layer = tf.nn.conv2d(layer_input, weights, [1, config.stride, config.stride, 1], padding=config.padding.upper())
+        if config.use_instance_norm:
+            conv_layer = NNGraphModelBuilder.instance_norm(conv_layer)
+        if config.activation is not None:
+            conv_layer = config.activation(conv_layer)
+        return conv_layer
+
+    @staticmethod
+    def deconv_block(layer_input, config: LayerConfig):
+        weights = NNGraphModelBuilder.var_init([config.filter_size, config.filter_size, config.num_filters, layer_input.get_shape()[3].value])
+        layer_shape = tf.stack([tf.shape(layer_input)[0], tf.shape(layer_input)[1] * config.stride, tf.shape(layer_input)[2] * config.stride, config.num_filters])
+        deconv_layer = tf.nn.conv2d_transpose(layer_input, weights, layer_shape, [1, config.stride, config.stride, 1], padding=config.padding.upper())
+        if config.use_instance_norm:
+            deconv_layer = NNGraphModelBuilder.instance_norm(deconv_layer)
+        if config.activation is not None:
+            deconv_layer = config.activation(deconv_layer)
+        return deconv_layer
+
+    @staticmethod
+    def residual_block_alt(layer_input, config: LayerConfig):
+        conv_config = config.copy()
+        conv_config.use_batch_norm = False
+        conv_config.use_instance_norm = False
+        conv_config.activation = None
+        residual_layer = NNGraphModelBuilder.conv_block(layer_input, config)
+        residual_layer = NNGraphModelBuilder.conv_block(residual_layer, conv_config)
+        residual_layer = layer_input + residual_layer
+        if config.use_instance_norm:
+            residual_layer = NNGraphModelBuilder.instance_norm(residual_layer)
+        if config.activation is not None:
+            residual_layer = config.activation(residual_layer)
+        return residual_layer
+
+    @staticmethod
+    def residual_block(layer_input, config: LayerConfig):
+        conv_config = config.copy()
+        conv_config.use_batch_norm = False
+        conv_config.use_instance_norm = True
+        conv_config.activation = None
+        residual_layer = NNGraphModelBuilder.conv_block(layer_input, config)
+        residual_layer = NNGraphModelBuilder.conv_block(residual_layer, conv_config)
+        residual_layer = layer_input + residual_layer
+        return residual_layer
+
+    @staticmethod
+    def instance_norm(layer_input):
+        batch, rows, cols, channels = [i.value for i in layer_input.get_shape()]
+        shift = tf.Variable(tf.zeros([channels]))
+        scale = tf.Variable(tf.ones([channels]))
+        mu, sigma_sq = tf.nn.moments(layer_input, [1, 2], keep_dims=True)
+        normalized = (layer_input - mu) / (sigma_sq + 1e-3) ** (.5)
+        return scale * normalized + shift
+
+
 class StyleTransfer:
     STYLE_WEIGHT = 1e-2
     TOTAL_VARIATION_WEIGHT = 1e-4#use 1e8 for normal style transfer
@@ -265,36 +314,27 @@ class StyleTransfer:
         'conv4_1',
         'conv5_1'
     ]
-    # VGG_CONTENT_TARGET_LAYER_NAMES_ALT = ['relu4_2']
-    # VGG_STYLE_TARGET_LAYER_NAMES_ALT = [
-    #     'relu1_1',
-    #     'relu2_1',
-    #     'relu3_1',
-    #     'relu4_1',
-    #     'relu5_1'
-    # ]
-
+    VGG_CONTENT_TARGET_LAYER_NAMES_ALT_ACT = ['relu5_2']
+    VGG_STYLE_TARGET_LAYER_NAMES_ALT_ACT = [
+        'relu1_1',
+        'relu2_1',
+        'relu3_1',
+        'relu4_1',
+        'relu5_1'
+    ]
 
     STYLE_CONFIG_DICT = {
-        'starry_night_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8),  # too much style
-        'starry_night_g_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 0),  # too much style
+        'starry_night_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8),
+        'starry_night_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1, 0, 0),
+        'starry_night_content': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 0, 1, 0),
+        # 'starry_night_net': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8),
 
-        'starry_night_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1, 0, 0), #too much style
-        'starry_night_content': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 0, 1, 0), #too much style
-        'starry_night_net': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8),  # worked pretty well, maybe a little too strong
+         'honeycomb_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
+         'honeycomb_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
 
-        # 'honeycomb': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
-        # 'honeycomb_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 4e4, 1e8), #too little content
-        #  'honeycomb_3_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 8e4, 1e8), #too little content
-         'honeycomb_3_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 1e5, 1e8), #too little content
-        # 'honeycomb_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 4e-4, 2e5, 1e8), #too much content
+        'heiro_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e8),
+        'heiro_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1, 0, 0),
 
-        # 'grass_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 4e4, 1e8), #worked pretty well, maybe a little too strong
-        # 'grass_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'grass_small.jpg'), 1e-3, 2e5, 1e8),
-
-        'heiro': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e8), #kinda noisy
-        'heiro_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-3, 4e4, 1e8),
-        'heiro_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e0, 1e4, 1e8), #see if we can get a lotta style out of one
         'heiro_alt': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'), 1e-2, 1e4, 1e8),
 
     }
