@@ -243,7 +243,7 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1_2):
         training_summaries.append(tf.summary.scalar('Content Loss', content_loss))
         training_summaries.append(tf.summary.scalar('Total Variation Loss', total_var_loss))
     merged_summaries = tf.summary.merge(training_summaries)
-    model_name = time.strftime(model_prefix + '_%Y-%m-%d-%H-%M')
+    model_name = time.strftime(model_prefix + '_%Y-%m-%d-%H-%M') + '_' + style_type
     summary_output_dir = os.path.join(constants.TENSORBOARD_DIR, model_name)
     writer = tf.summary.FileWriter(summary_output_dir)
 
@@ -258,7 +258,9 @@ def train_style_network(style_type, test_content_image_path=CONTENT_IMAGE_1_2):
     style_network_configs['content_layers'] = StyleTransfer.VGG_CONTENT_TARGET_LAYER_NAMES
     style_network_configs['batch_size'] = BATCH_SIZE
     style_network_configs['data_size'] = TOTAL_IMAGES
+    style_network_configs['epochs'] = EPOCHS
     style_network_configs['LR'] = LEARNING_RATE
+    style_network_configs['config_name'] = style_type
     with open(os.path.join(target_dir, 'config.json'), 'w+') as fl:
         json.dump(style_network_configs, fl, indent=4)
 
@@ -354,15 +356,6 @@ def normal_style_transfer(style_type):
     with tf.name_scope('vgg_network'):
         [style_targets, style_layers], [content_targets, content_layers] = build_vgg_network_replicate([vgg_preprocess_input(vgg_network_input),
                                                                          vgg_preprocess_input(train_target)], replications=2)
-
-    # with tf.name_scope('vgg_network'):
-    #     [style_targets, content_targets] = build_vgg_network_replicate([vgg_preprocess_input(vgg_network_input)], replications=1)
-    # with tf.Session(config=gpu_config) as session:
-    #     session.run(tf.compat.v1.global_variables_initializer())
-    #     saver = tf.compat.v1.train.Saver()
-    #
-    #     style_targets_sample = session.run(style_targets, feed_dict={vgg_network_input: style_image_1})
-    #     content_targets_sample = session.run(content_targets, feed_dict={vgg_network_input: content_image_1})
 
     ############################
     ### LOSS AND OPTIMIZIZER ###
@@ -517,7 +510,8 @@ if __name__=='__main__':
             run_on_image(src, dest, model_path=model)
     else:
         # normal_style_transfer('starry_night_transfer')
-        train_style_network('heiro_transfer')
+
+        train_style_network('heiro_shadow_3')
 
 
 

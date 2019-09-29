@@ -324,18 +324,39 @@ class StyleTransfer:
     ]
 
     STYLE_CONFIG_DICT = {
-        'starry_night_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8),
+        'starry_night_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-2, 1e4, 1e8), # just about right
         'starry_night_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1, 0, 0),
         'starry_night_content': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 0, 1, 0),
         # 'starry_night_net': StyleConfig(os.path.join(constants.STYLES_DIR, 'starry_night.jpg'), 1e-3, 4e4, 1e8),
 
          'honeycomb_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
-         'honeycomb_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-2, 1e4, 1e8),
+         'honeycomb_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-4, 1e4, 1e8), # too little style
+         'honeycomb_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'honeycomb_squeeze.jpg'), 1e-3, 1e4, 1e8), # just about right, but odd looking
 
-        'heiro_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e8),
-        'heiro_style': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1, 0, 0),
+        'heiro_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-2, 1e4, 1e8), # too much style
+        'heiro_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-3, 1e4, 1e8), # style is a bit too weak but there's more variation in the patterns
+        'heiro_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 5e-3, 1e4, 1e8), # style maybe just a *bit* too strong
+        'heiro_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 2e-3, 1e4, 1e8), # style still a bit too strong lots more variation in patterns but some patters are on the content
 
-        'heiro_alt': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'), 1e-2, 1e4, 1e8),
+        'heiro_alt_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'), 1e-2, 1e4, 1e8), #too much style
+        'heiro_alt_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'),5e-3, 1e4, 1e8), #too much style
+        'heiro_alt_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'),1e-3, 1e4, 1e8), # too little style
+
+        'gears_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'gears.jpg'), 1e-2, 1e4, 1e8), # too little style
+        'gears_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'gears.jpg'), 1e-1, 1e4, 1e8), # too much style
+
+        'rain_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'rain.jpg'), 1e-2, 1e4, 1e8), # too much style
+        'rain_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'rain.jpg'), 1e-3, 1e4, 1e8), # too little style
+        'rain_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'rain.jpg'), 5e-3, 1e4, 1e8), # just about right
+
+        'wave_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'wave.jpg'), 1e-2, 1e4, 1e8), #too much style
+        'wave_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'wave.jpg'), 1e-3, 1e4, 1e8), # too little style
+        'wave_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'wave.jpg'), 5e-3, 1e4, 1e8), # just about right
+
+        'heiro_shadow_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 5e-3, 1e4, 1e8), # seems like not enough style
+        'heiro_shadow_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 1e-2, 1e4, 1e8), # not enough style
+        'heiro_shadow_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 5e-2, 1e4, 1e8),
+
 
     }
 
