@@ -508,6 +508,16 @@ if __name__=='__main__':
         model_dir = os.path.join(constants.MODELS_DIR, model)
         if os.path.exists(src) and os.path.exists(model_dir) and os.path.isdir(model_dir):
             run_on_image(src, dest, model_path=model)
+    elif len(sys.argv) == 5:
+        model = sys.argv[1]
+        model_base_dir = sys.argv[2]
+        src = sys.argv[3]
+        dest = sys.argv[4]
+        model_dir = os.path.join(model_base_dir, model)
+        print('--' + model_dir)
+
+        if os.path.exists(src) and os.path.exists(model_dir) and os.path.isdir(model_dir):
+            run_on_image(src, dest, model_path=model)
     else:
         # normal_style_transfer('starry_night_transfer')
 

@@ -8,7 +8,7 @@ is trained on a single style and reduces time to stylize content images by up to
 
 The idea behind this project *was* to use the concept from **Perceptual Losses for Real-Time Style Transfer and Super-Resolution** in conjunction
 with output produced by a VAE to train a stylizer network that's able to produce outputs stylized by styles that are sampled by interpolating
-between two base style's latent vector encodings on the aformentioned VAE. This isn't feasible, for reasons listed at the bottom of this page.
+between two base style's latent vector encodings on the aforementioned VAE. This isn't feasible, for reasons listed at the bottom of this page.
 
 The idea being this project has now become to find a heuristic to determine style, content, and total variation loss weights which will lead to
 style networks with better best qualitative results than would be found by evaluating style network outputs after training time and
@@ -32,6 +32,19 @@ You might need the COCO dataset in res/coco/train2014/train2014 if you're wantin
 
 ### Results
 
+#### Some Style Network Outputs
+
+<img src="res/examples/style_transfer/museum.jpg" width="300" height="225"/>
+
+<img src="res/examples/style_transfer/museum_s_starry_night.jpg" width="300" height="225"/>
+<img src="res/styles/starry_night.jpg" width="300" height="250"/>
+
+<img src="res/examples/style_transfer/museum_s_rain.jpg" width="300" height="225"/>
+<img src="res/styles/rain.jpg" width="300" height="193"/>
+
+<img src="res/examples/style_transfer/museum_s_wave.jpg" width="300" height="225"/>
+<img src="res/styles/wave.jpg" width="300" height="202"/>
+
 #### VAE output when using cross-entropy in reconstruction loss - 128x128x3
 
 This was an interesting output from the initial VAE (build for Session Execution rather than Eager Execution) when softmax_cross_entropy_with_logits loss was used.
@@ -40,7 +53,7 @@ activation. This will probably be revisited at some point to produce some hellsc
 
 <img src="res/examples/quad_1.jpg" width="600" height="600"/>
 
-This was output from the inital VAE after switching to MSE loss.
+This was output from the initial VAE after switching to MSE loss.
 
 #### VAE output when using MSE in reconstruction loss - 128x128x3
 
