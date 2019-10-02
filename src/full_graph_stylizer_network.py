@@ -439,16 +439,17 @@ def normal_style_transfer(style_type):
 
 
 class StyleNetService(threading.Thread):
-    def __init__(self, model_name):
+    def __init__(self, model_name, model_dir = constants.MODELS_DIR):
         # tf.logging.set_verbosity(tf.logging.ERROR)
         tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
         super().__init__()
         self.model_name = model_name
+        self.model_dir = model_dir
         self.loaded = False
 
     def run(self):
         print('StyleNetService starting...')
-        model_dir = os.path.join(constants.MODELS_DIR, self.model_name)
+        model_dir = os.path.join(self.model_dir, self.model_name)
         self.session = tf.Session()
 
         self.network_input = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='style_network_input')
@@ -478,14 +479,14 @@ class StyleNetService(threading.Thread):
             time.sleep(increment)
 
 
-def run_on_image(source_image_path, destination_path, model_path=None):
+def run_on_image(source_image_path, destination_path, model_path=None, model_dir=constants.MODELS_DIR):
     target_image = load_image(source_image_path)
 
     real_model_path = model_path
     if real_model_path == None:
-        real_model_path = model_utilities.get_most_recent_model_name(constants.MODELS_DIR, model_prefix)
+        real_model_path = model_utilities.get_most_recent_model_name(model_dir, model_prefix)
 
-    service = StyleNetService(real_model_path)
+    service = StyleNetService(real_model_path, model_dir)
     service.start()
     service.wait_for_ready()
 
@@ -517,11 +518,11 @@ if __name__=='__main__':
         print('--' + model_dir)
 
         if os.path.exists(src) and os.path.exists(model_dir) and os.path.isdir(model_dir):
-            run_on_image(src, dest, model_path=model)
+            run_on_image(src, dest, model_path=model_dir, model_dir=model_base_dir)
     else:
         # normal_style_transfer('starry_night_transfer')
 
-        train_style_network('heiro_shadow_3')
+        train_style_network('heiro_4')
 
 
 

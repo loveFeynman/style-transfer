@@ -337,6 +337,7 @@ class StyleTransfer:
         'heiro_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1e-3, 1e4, 1e8), # style is a bit too weak but there's more variation in the patterns
         'heiro_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 5e-3, 1e4, 1e8), # style maybe just a *bit* too strong
         'heiro_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 2e-3, 1e4, 1e8), # style still a bit too strong lots more variation in patterns but some patters are on the content
+        'heiro_4': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro.jpg'), 1.5e-3, 1e4, 1e8),
 
         'heiro_alt_transfer': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'), 1e-2, 1e4, 1e8), #too much style
         'heiro_alt_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_alt.jpg'),5e-3, 1e4, 1e8), #too much style
@@ -355,7 +356,7 @@ class StyleTransfer:
 
         'heiro_shadow_1': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 5e-3, 1e4, 1e8), # seems like not enough style
         'heiro_shadow_2': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 1e-2, 1e4, 1e8), # not enough style
-        'heiro_shadow_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 5e-2, 1e4, 1e8),
+        'heiro_shadow_3': StyleConfig(os.path.join(constants.STYLES_DIR, 'heiro_shadow.jpg'), 5e-2, 1e4, 1e8), # style too strong, but it doesn't even look that good anyway
 
 
     }
