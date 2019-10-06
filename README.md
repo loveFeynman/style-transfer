@@ -43,7 +43,7 @@ approximately two hours.
 #### StyleNet Service
 
 I developed a Django service which services a site which uploads a user-supplied photo to the server, stylizes it, and spits it back. The front end uses dropzone.
-Run this utility with `start_django.bat`. Access it at `localhost:800/style_net/`. 
+Run this utility with `start_django.bat`. Access it at `localhost:8000/style_net/`.
 
 <p align="center">
 <img src="res/examples/dropzone.jpg" width="347" height="401"/>
