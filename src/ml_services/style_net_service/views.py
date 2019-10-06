@@ -10,7 +10,6 @@ from django.template.loader import get_template, render_to_string
 from django.views.decorators.csrf import csrf_exempt
 
 
-
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../'))
 
 import constants
@@ -20,15 +19,28 @@ import model_utilities
 from image_utilities import *
 
 
-service = full_graph_stylizer_network.StyleNetService(model_utilities.get_most_recent_model_name(constants.MODELS_DIR, graph_stylizer_network.model_prefix))
-service.start()
+# model_utilities.get_most_recent_model_name(constants.MODELS_DIR, graph_stylizer_network.model_prefix)
+rain_service = full_graph_stylizer_network.StyleNetService('STYLE_NET_2019-09-24-20-41', os.path.join(constants.MODELS_DIR,'rain'))
+rain_service.start()
+
+wave_service = full_graph_stylizer_network.StyleNetService('STYLE_NET_2019-09-24-15-54', os.path.join(constants.MODELS_DIR,'waves'))
+wave_service.start()
+
+starry_service = full_graph_stylizer_network.StyleNetService('STYLE_NET_2019-09-22-22-24', os.path.join(constants.MODELS_DIR,'starry_night'))
+starry_service.start()
+
+services = {
+    'starry' : starry_service,
+    'wave' : wave_service,
+    'rain' : rain_service
+}
 
 
 @csrf_exempt
 def index(request):
     if request.method == 'POST':
-
-        file_name = service.model_name + '_' + request.FILES['file'].name
+        style_name = request.GET.get('style','starry')
+        file_name = style_name + '_' + request.FILES['file'].name
         data = request.FILES['file'].read()
 
         img = np.fromstring(data, np.uint8)
@@ -37,9 +49,11 @@ def index(request):
         img = pixel_to_decimal(img)
         img = image_3d_to_4d(img)
 
-        omg = service.run_on_image(img)
+
+        omg = services[style_name].run_on_image(img)
 
         save_image(omg, file_name)
+        print(file_name)
 
         return HttpResponse(file_name)
     else:

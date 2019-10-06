@@ -13,8 +13,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 
-COCO_DATASET = os.path.join(HERE, '../../../res/coco/train2014/train2014/')
-COCO_DATASET_CLIPPED = os.path.join(HERE, '../../../res/coco_clipped')
+COCO_DATASET = os.path.join(HERE, '../res/coco/coco/train2014/train2014/')
+COCO_DATASET_CLIPPED = os.path.join(HERE, '../res/coco/coco_clipped')
 
 DEBUG_MODE = False
 

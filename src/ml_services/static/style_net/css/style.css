@@ -13,6 +13,26 @@
   background: rgba(0,0,0,0.02);
   padding: 1em;
 }
+#rain-dropzone {
+    background-image: url("../rain.jpg");
+    background-repeat: no-repeat;
+    width: 960;
+    left: 25%;
+}
+#wave-dropzone {
+    background-image: url("../wave.jpg");
+    background-repeat: no-repeat;
+    width: 960;
+    left: 25%;
+}
+#starry-dropzone {
+    background-image: url("../starry_night.jpg");
+    background-repeat: no-repeat;
+    width: 960;
+    left: 25%;
+}
+
+
 .dropzone.dz-clickable {
   cursor: pointer;
 }
@@ -44,6 +64,7 @@
   vertical-align: top;
   border: 1px solid #acacac;
   padding: 6px 6px 6px 6px;
+  border-radius: 6px;
 }
 .dropzone .dz-preview.dz-file-preview [data-dz-thumbnail],
 .dropzone-previews .dz-preview.dz-file-preview [data-dz-thumbnail] {
@@ -51,33 +72,37 @@
 }
 .dropzone .dz-preview .dz-details,
 .dropzone-previews .dz-preview .dz-details {
-  width: 100px;
+  /* width: 100px;
   height: 100px;
   position: relative;
   background: #ebebeb;
   padding: 5px;
-  margin-bottom: 22px;
+  margin-bottom: 22px; */
+  display: none;
 }
 .dropzone .dz-preview .dz-details .dz-filename,
 .dropzone-previews .dz-preview .dz-details .dz-filename {
-  overflow: hidden;
-  height: 100%;
+  /* overflow: hidden;
+  height: 100%; */
+  display: none;
 }
 .dropzone .dz-preview .dz-details img,
 .dropzone-previews .dz-preview .dz-details img {
-  position: absolute;
+  /* position: absolute;
   top: 0;
   left: 0;
   width: 100px;
-  height: 100px;
+  height: 100px; */
+  display: none;
 }
 .dropzone .dz-preview .dz-details .dz-size,
 .dropzone-previews .dz-preview .dz-details .dz-size {
-  position: absolute;
+  /* position: absolute;
   bottom: -28px;
   left: 3px;
   height: 28px;
-  line-height: 28px;
+  line-height: 28px; */
+  display: none;
 }
 .dropzone .dz-preview.dz-error .dz-error-mark,
 .dropzone-previews .dz-preview.dz-error .dz-error-mark {
@@ -115,10 +140,10 @@
 .dropzone .dz-preview .dz-progress,
 .dropzone-previews .dz-preview .dz-progress {
   position: absolute;
-  top: 100px;
+  top: 48%;
   left: 6px;
   right: 6px;
-  height: 6px;
+  height: 4%;
   background: #d7d7d7;
   display: none;
 }
@@ -389,3 +414,5 @@
     background-position: -7px -400px;
   }
 }
+
+

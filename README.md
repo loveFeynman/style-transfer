@@ -14,30 +14,68 @@ The idea being this project has now become to find a heuristic to determine styl
 style networks with better best qualitative results than would be found by evaluating style network outputs after training time and
 adjusting weights until a network with acceptable outputs is found. Essentially, automatic hyperparameter tuning specific to style networks.
 
+
+### Running the StyleNet
+
+From the repository root,
+
+`$python src/full_graph_stylizer_network.py source_image.jpg destination_image.jpg` to use the most recently trained style network located in ./models/
+
+`$python src/full_graph_stylizer_network.py source_image.jpg destination_image.jpg` to use the most recently trained style network located in ./models/
+
+`$python src/full_graph_stylizer_network.py model_directory_name source_image.jpg destination_image.jpg` to use the specified model located in ./models/
+
+`$python src/full_graph_stylizer_network.py model_directory_name model_directory_parent_directory source_image.jpg destination_image.jpg` 
+to use the specified model located in the specified directory
+
+Alternatively, view the instructions to use the Django service which serves three models.
+
+### Training a StyleNet
+
+The easiest way to do this is run `full_graph_stylizer_network.py` from PyCharm. This hits a default condition when the files is run which triggers training to kick off.
+Specify the style to train with the last line in the file, which corresponds to a style configuration in the `STYLE_CONFIG_DICT` in the `StyleTransfer` class in 
+`model_utilities.py`. Using the default hyperparameter configuration of 80 epochs of 1000 images (half of the number used in **Perceptual Losses**), training takes
+approximately two hours.
+
+
 ### Other Things
+
+#### StyleNet Service
+
+I developed a Django service which services a site which uploads a user-supplied photo to the server, stylizes it, and spits it back. The front end uses dropzone.
+Run this utility with `start_django.bat`. Access it at `localhost:800/style_net/`. 
+
+<img src="res/examples/dropzone.jpg" width="347" height="401"/>
+
+#### VAE Visualizer
 
 I also developed a visualization utility for viewing VAE interpolations between selected images' encodings. That's vae_keras_gui.
 
 Also, there's a function in ImageUtilities for generating a .gif from a folder of images. Run this on a folder with incremental outputs from training 
 for a neat little gif.
 
-
 ### Dependencies
 
 pip install tensorflow matplotlib imageio opencv-python pyqt5 django
 
-Optionally install tensorflow-gpu instead.
+Optionally install tensorflow-gpu instead. There might be a few other pip libraries I forgot but they should be trivial to install.
 
-You might need the COCO dataset in res/coco/train2014/train2014 if you're wanting to train the stylizer network.
+If you want to train the style network, you'll need to:
+
+1) Put the 2014 COCO training dataset in `res/coco/coco/train2014/train2014/`
+2) Run `$python image_utilities.py` which will generate a clipped COCO dataset (clipped to 256x256)
+3) Download `imagenet-vgg-verydeep-19.mat` from `http://www.vlfeat.org/matconvnet/pretrained/` and put it in `res/vgg19`.
 
 ### Results
 
 #### Some Style Network Outputs
 
-<img src="res/examples/style_transfer/museum.jpg" width="300" height="225"/>
 
+<img src="res/examples/style_transfer/museum.jpg" width="300" height="225"/>
+<p align="center">
 <img src="res/examples/style_transfer/museum_s_starry_night.jpg" width="300" height="225"/>
 <img src="res/styles/starry_night.jpg" width="300" height="250"/>
+</p>
 
 <img src="res/examples/style_transfer/museum_s_rain.jpg" width="300" height="225"/>
 <img src="res/styles/rain.jpg" width="300" height="193"/>
