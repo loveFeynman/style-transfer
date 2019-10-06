@@ -45,7 +45,9 @@ approximately two hours.
 I developed a Django service which services a site which uploads a user-supplied photo to the server, stylizes it, and spits it back. The front end uses dropzone.
 Run this utility with `start_django.bat`. Access it at `localhost:800/style_net/`. 
 
+<p align="center">
 <img src="res/examples/dropzone.jpg" width="347" height="401"/>
+</p>
 
 #### VAE Visualizer
 
@@ -70,18 +72,24 @@ If you want to train the style network, you'll need to:
 
 #### Some Style Network Outputs
 
-
-<img src="res/examples/style_transfer/museum.jpg" width="300" height="225"/>
 <p align="center">
-<img src="res/examples/style_transfer/museum_s_starry_night.jpg" width="300" height="225"/>
-<img src="res/styles/starry_night.jpg" width="300" height="250"/>
+<img src="res/examples/style_transfer/museum.jpg" width="300" height="225"/>
 </p>
 
-<img src="res/examples/style_transfer/museum_s_rain.jpg" width="300" height="225"/>
-<img src="res/styles/rain.jpg" width="300" height="193"/>
+<p align="center">
+<img src="res/examples/style_transfer/museum_s_starry_night.jpg" width="300" height="225"/>
+<img src="res/styles/starry_night.jpg" width="270" height="225"/>
+</p>
 
+<p align="center">
+<img src="res/examples/style_transfer/museum_s_rain.jpg" width="300" height="225"/>
+<img src="res/styles/rain.jpg" width="350" height="225"/>
+</p>
+
+<p align="center">
 <img src="res/examples/style_transfer/museum_s_wave.jpg" width="300" height="225"/>
-<img src="res/styles/wave.jpg" width="300" height="202"/>
+<img src="res/styles/wave.jpg" width="334" height="225"/>
+</p>
 
 #### VAE output when using cross-entropy in reconstruction loss - 128x128x3
 
@@ -89,20 +97,26 @@ This was an interesting output from the initial VAE (build for Session Execution
 Currently, I'm attributing the odd outputs to the fact that the softmax_cross_entropy_with_logits is expecting logits as input but is receiving the output of sigmoid 
 activation. This will probably be revisited at some point to produce some hellscape-esque artwork.
 
-<img src="res/examples/quad_1.jpg" width="600" height="600"/>
+<p align="center">
+<img src="res/examples/quad_1.jpg" width="400" height="400"/>
+</p>
 
 This was output from the initial VAE after switching to MSE loss.
 
 #### VAE output when using MSE in reconstruction loss - 128x128x3
 
-<img src="res/examples/quad_2.jpg" width="600" height="600"/>
+<p align="center">
+<img src="res/examples/quad_2.jpg" width="400" height="400"/>
+</p>
 
 #### VAE output from VAE_Keras (using eager execution), input/output resolution of 224x224x3
 
 Output from the keras based Eager Execution VAE for producing 224x224x3 outputs. The main architectural difference between this and the above mentioned VAE
 was that there wasn't a final fully connected layer in this one. Taking that last FC layer out was necessary to scale up to this size with my GPU.
 
-<img src="res/examples/quad_3.jpg" width="600" height="600"/>
+<p align="center">
+<img src="res/examples/quad_3.jpg" width="400" height="400"/>
+</p>
 
 ### Design Decisions
 
