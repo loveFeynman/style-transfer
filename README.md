@@ -14,6 +14,16 @@ The idea being this project has now become to find a heuristic to determine styl
 style networks with better best qualitative results than would be found by evaluating style network outputs after training time and
 adjusting weights until a network with acceptable outputs is found. Essentially, automatic hyperparameter tuning specific to style networks.
 
+The goal of this project shifted to creating a Django service for hosting a style network in a user friendly way.
+
+### StyleNet Service
+
+I developed a Django service which services a site which uploads a user-supplied photo to the server, stylizes it, and spits it back. The front end uses dropzone.
+Run this utility with `start_django.bat`. Access it at `localhost:8000/style_net/`.
+
+<p align="center">
+<img src="res/examples/dropzone.jpg" width="347" height="401"/>
+</p>
 
 ### Running the StyleNet
 
@@ -37,17 +47,7 @@ Specify the style to train with the last line in the file, which corresponds to 
 `model_utilities.py`. Using the default hyperparameter configuration of 80 epochs of 1000 images (half of the number used in **Perceptual Losses**), training takes
 approximately two hours.
 
-
 ### Other Things
-
-#### StyleNet Service
-
-I developed a Django service which services a site which uploads a user-supplied photo to the server, stylizes it, and spits it back. The front end uses dropzone.
-Run this utility with `start_django.bat`. Access it at `localhost:8000/style_net/`.
-
-<p align="center">
-<img src="res/examples/dropzone.jpg" width="347" height="401"/>
-</p>
 
 #### VAE Visualizer
 

@@ -49,11 +49,9 @@ def index(request):
         img = pixel_to_decimal(img)
         img = image_3d_to_4d(img)
 
-
         omg = services[style_name].run_on_image(img)
 
         save_image(omg, file_name)
-        print(file_name)
 
         return HttpResponse(file_name)
     else:

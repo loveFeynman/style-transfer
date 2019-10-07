@@ -39,9 +39,6 @@ model_prefix = 'STYLE_NET'
 TRAIN_IMG_DIMS = [None, 256, 256, 3]
 
 
-
-
-
 def build_style_network(network_input):
     conv_layer_configs = [LayerConfig(32, 9, 1),
                           LayerConfig(64, 3, 2),
