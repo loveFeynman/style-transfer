@@ -1,4 +1,4 @@
-## Multi-Style Stylizer Network for Style Transfer
+## Stylizer Network for Style Transfer
 
 ### Overview
 
@@ -9,10 +9,6 @@ is trained on a single style and reduces time to stylize content images by up to
 The idea behind this project *was* to use the concept from **Perceptual Losses for Real-Time Style Transfer and Super-Resolution** in conjunction
 with output produced by a VAE to train a stylizer network that's able to produce outputs stylized by styles that are sampled by interpolating
 between two base style's latent vector encodings on the aforementioned VAE. This isn't feasible, for reasons listed at the bottom of this page.
-
-The idea being this project has now become to find a heuristic to determine style, content, and total variation loss weights which will lead to
-style networks with better best qualitative results than would be found by evaluating style network outputs after training time and
-adjusting weights until a network with acceptable outputs is found. Essentially, automatic hyperparameter tuning specific to style networks.
 
 The goal of this project shifted to creating a Django service for hosting a style network in a user friendly way.
 
